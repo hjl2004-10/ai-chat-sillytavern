@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(cp:*)",
+      "Bash(diff:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

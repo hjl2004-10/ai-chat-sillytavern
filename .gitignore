@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Flask
+instance/
+.webassets-cache
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 数据文件
+data/
+*.log
+*.jsonl
+backups/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 敏感信息
+secrets.json
+config.json
+*.key
+*.pem
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+
+# SillyTavern 特定文件（如果有）
+SillyTavern/
