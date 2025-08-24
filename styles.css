@@ -272,12 +272,21 @@ body.dark {
     justify-content: center;
     padding: 20px;
     overflow-y: auto;
+    position: relative;
+    min-height: 0;
+    cursor: default;
 }
 
 .welcome-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     max-width: 600px;
     width: 100%;
+    height: 100%;
+    gap: 30px;
 }
 
 .welcome-title {
@@ -524,9 +533,26 @@ body.dark {
 /* 消息容器 - ChatGPT风格 */
 .messages-container {
     flex: 1;
+    width: 100%;
+    max-width: 900px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+}
+
+/* 当有消息时，调整chat-container布局 */
+.chat-container:has(.messages-container) {
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+/* 当有消息时，输入框固定在底部 */
+.chat-container:has(.messages-container) .chat-input-wrapper {
+    position: sticky;
+    bottom: 0;
+    background: inherit;
+    padding: 20px 0;
+    z-index: 10;
 }
 
 /* 消息样式 - ChatGPT风格 */
@@ -658,10 +684,10 @@ body.dark {
 .modal-content {
     background: white;
     border-radius: 16px;
-    max-width: 500px;
+    max-width: 600px;
     width: 90%;
-    max-height: 80vh;
-    overflow: hidden;
+    max-height: none;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     animation: slideUp 0.3s ease;
@@ -721,7 +747,40 @@ body.dark {
 
 .modal-body {
     padding: 20px;
+    max-height: 80vh;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+}
+
+/* 美化modal滚动条 */
+.modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+.dark .modal-body {
+    scrollbar-color: #4b5563 transparent;
+}
+
+.dark .modal-body::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+.dark .modal-body::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
 }
 
 /* 设置表单 */
@@ -905,18 +964,35 @@ body.dark {
 }
 
 .history-actions button {
-    padding: 4px 8px;
+    padding: 6px;
     border: none;
-    background: #3b82f6;
-    color: white;
-    border-radius: 4px;
-    font-size: 16px;
+    background: transparent;
+    color: #6b7280;
+    border-radius: 6px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .history-actions button:hover {
-    opacity: 0.8;
+    background: #f3f4f6;
+    color: #3b82f6;
+}
+
+.dark .history-actions button {
+    color: #9ca3af;
+}
+
+.dark .history-actions button:hover {
+    background: #2a2a2a;
+    color: #60a5fa;
+}
+
+.history-actions button svg {
+    width: 16px;
+    height: 16px;
 }
 
 .history-list {
@@ -928,10 +1004,13 @@ body.dark {
 }
 
 .history-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 10px;
     background: #f9fafb;
     border-radius: 8px;
-    cursor: pointer;
     transition: background 0.2s;
 }
 
@@ -945,6 +1024,44 @@ body.dark {
 
 .dark .history-item:hover {
     background: #333;
+}
+
+.history-content {
+    flex: 1;
+    cursor: pointer;
+}
+
+.history-delete-btn {
+    padding: 4px;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.history-item:hover .history-delete-btn {
+    opacity: 1;
+}
+
+.history-delete-btn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.dark .history-delete-btn:hover {
+    background: #7f1d1d;
+    color: #f87171;
+}
+
+.history-delete-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
 .history-item.active {
@@ -976,3 +1093,4 @@ body.dark {
 .dark .history-meta {
     color: #9ca3af;
 }
+

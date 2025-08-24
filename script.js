@@ -40,6 +40,19 @@ function toggleSidebar() {
     }
 }
 
+// 收缩侧边栏
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const menuToggle = document.getElementById('menuToggle');
+    
+    if (!sidebar.classList.contains('hidden')) {
+        sidebar.classList.add('hidden');
+        mainContent.classList.add('expanded');
+        menuToggle.classList.add('show');
+    }
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
     // 获取DOM元素
@@ -78,6 +91,25 @@ document.addEventListener('DOMContentLoaded', async function() {
         newChatBtn.addEventListener('click', startNewChat);
     }
     
+    // 点击聊天容器的空白区域收缩侧边栏
+    if (chatContainer) {
+        chatContainer.addEventListener('click', function(e) {
+            // 如果点击的是聊天容器本身或欢迎界面
+            if (e.target === chatContainer || 
+                e.target.classList.contains('welcome-section') ||
+                e.target.classList.contains('welcome-title') ||
+                e.target.classList.contains('suggestions') ||
+                e.target.classList.contains('suggestions-header') ||
+                e.target.classList.contains('suggestions-list')) {
+                
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && !sidebar.classList.contains('hidden')) {
+                    closeSidebar();
+                }
+            }
+        });
+    }
+    
     // 加载配置
     await loadConfig();
     
@@ -86,6 +118,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 加载历史对话列表
     await loadChatHistory();
+    
+    // 初始化世界书（如果有的话）
+    if (typeof initWorldBook === 'function') {
+        initWorldBook();
+    }
     
     // 初始化显示
     updateHistoryDisplay();
@@ -343,13 +380,19 @@ async function sendMessage() {
     contextMessages.push({ role: 'user', content: message });
     updateHistoryDisplay();
     
+    // 应用世界书（如果有的话）
+    let messagesWithWorldBook = contextMessages;
+    if (typeof injectWorldBookContent === 'function') {
+        messagesWithWorldBook = injectWorldBookContent(contextMessages);
+    }
+    
     // 显示加载状态
     const loadingDiv = addMessageToChat('assistant', '', true);
     
     try {
-        // 准备请求数据
+        // 准备请求数据（使用包含世界书的消息）
         const requestData = {
-            messages: contextMessages,
+            messages: messagesWithWorldBook,
             model: config.model,
             temperature: config.temperature,
             max_tokens: config.max_tokens,
@@ -516,10 +559,18 @@ function startNewChat() {
         messagesContainer.remove();
     }
     
-    // 显示欢迎界面
+    // 确保输入框在正确的位置
+    const inputWrapper = document.querySelector('.chat-input-wrapper');
     const welcomeSection = document.querySelector('.welcome-section');
-    if (welcomeSection) {
+    
+    if (welcomeSection && inputWrapper) {
+        // 显示欢迎界面
         welcomeSection.style.display = 'flex';
+        
+        // 确保输入框在欢迎界面内
+        if (!welcomeSection.contains(inputWrapper)) {
+            welcomeSection.appendChild(inputWrapper);
+        }
     }
     
     // 更新历史显示
@@ -541,8 +592,23 @@ function updateHistoryDisplay() {
             <div class="history-header">
                 <span>历史对话</span>
                 <div class="history-actions">
-                    <button onclick="exportCurrentChat()" title="导出当前对话">📥</button>
-                    <button onclick="exportAllChats()" title="导出所有对话">📦</button>
+                    <button onclick="exportCurrentChat()" title="导出当前对话">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </button>
+                    <button onclick="exportAllChats()" title="导出所有对话">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
+                            <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
+                            <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    </button>
                 </div>
             </div>
             <div class="history-list"></div>
@@ -570,10 +636,19 @@ function updateHistoryDisplay() {
         const historyDiv = document.createElement('div');
         historyDiv.className = 'history-item';
         historyDiv.innerHTML = `
-            <div class="history-title">${chat.title}</div>
-            <div class="history-meta">${chat.messages.length} 条消息</div>
+            <div class="history-content" onclick="loadHistoryChat(${index})">
+                <div class="history-title">${chat.title}</div>
+                <div class="history-meta">${chat.messages.length} 条消息</div>
+            </div>
+            <button class="history-delete-btn" onclick="event.stopPropagation(); deleteHistoryChat(${index})" title="删除对话">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+            </button>
         `;
-        historyDiv.onclick = () => loadHistoryChat(index);
         list.appendChild(historyDiv);
     });
 }
@@ -774,17 +849,30 @@ window.importChat = function(file) {
                 currentChatTitle = messages[0]?.content.substring(0, 30) + '...' || '导入的对话';
                 currentChatId = 'imported_' + Date.now();
                 
-                // 重新显示
-                const messagesContainer = document.querySelector('.messages-container');
+                // 清空现有消息容器
+                let messagesContainer = document.querySelector('.messages-container');
                 if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
+                    messagesContainer.remove();
                 }
                 
+                // 隐藏欢迎界面
                 const welcomeSection = document.querySelector('.welcome-section');
                 if (welcomeSection) {
                     welcomeSection.style.display = 'none';
                 }
                 
+                // 重新创建消息容器
+                messagesContainer = document.createElement('div');
+                messagesContainer.className = 'messages-container';
+                chatContainer.appendChild(messagesContainer);
+                
+                // 重新添加输入框
+                const inputWrapper = document.querySelector('.chat-input-wrapper');
+                if (inputWrapper) {
+                    chatContainer.appendChild(inputWrapper);
+                }
+                
+                // 显示所有消息
                 contextMessages.forEach(msg => {
                     addMessageToChat(msg.role, msg.content);
                 });
@@ -804,6 +892,9 @@ window.importChat = function(file) {
 function saveChatToHistory() {
     if (contextMessages.length === 0) return;
     
+    // 检查是否已经存在相同ID的对话
+    const existingIndex = chatHistory.findIndex(chat => chat.chatId === currentChatId);
+    
     const chat = {
         title: currentChatTitle,
         chatId: currentChatId || 'chat_' + Date.now(),
@@ -811,10 +902,15 @@ function saveChatToHistory() {
         timestamp: new Date().toISOString()
     };
     
-    // 添加到历史（最多保存20个）
-    chatHistory.unshift(chat);
-    if (chatHistory.length > 20) {
-        chatHistory.pop();
+    if (existingIndex !== -1) {
+        // 如果已存在，更新它
+        chatHistory[existingIndex] = chat;
+    } else {
+        // 如果不存在，添加到历史（最多保存20个）
+        chatHistory.unshift(chat);
+        if (chatHistory.length > 20) {
+            chatHistory.pop();
+        }
     }
     
     // 保存到localStorage
@@ -860,10 +956,10 @@ function loadHistoryChat(index) {
     currentChatId = chat.chatId;
     currentChatTitle = chat.title;
     
-    // 清空并重新显示消息
-    const messagesContainer = document.querySelector('.messages-container');
+    // 清空现有消息容器
+    let messagesContainer = document.querySelector('.messages-container');
     if (messagesContainer) {
-        messagesContainer.innerHTML = '';
+        messagesContainer.remove();
     }
     
     // 隐藏欢迎界面
@@ -872,7 +968,18 @@ function loadHistoryChat(index) {
         welcomeSection.style.display = 'none';
     }
     
-    // 重新显示所有消息
+    // 重新创建消息容器
+    messagesContainer = document.createElement('div');
+    messagesContainer.className = 'messages-container';
+    chatContainer.appendChild(messagesContainer);
+    
+    // 重新添加输入框
+    const inputWrapper = document.querySelector('.chat-input-wrapper');
+    if (inputWrapper) {
+        chatContainer.appendChild(inputWrapper);
+    }
+    
+    // 显示所有消息
     contextMessages.forEach(msg => {
         addMessageToChat(msg.role, msg.content);
     });
@@ -882,3 +989,24 @@ function loadHistoryChat(index) {
     
     showToast(`已加载对话: ${chat.title}`, 'success');
 }
+
+// 删除历史对话
+window.deleteHistoryChat = function(index) {
+    const chat = chatHistory[index];
+    if (!chat) return;
+    
+    // 确认删除
+    if (confirm(`确定要删除对话 "${chat.title}" 吗？`)) {
+        // 从历史数组中移除
+        chatHistory.splice(index, 1);
+        
+        // 更新localStorage
+        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        
+        // 更新显示
+        updateHistoryDisplay();
+        
+        showToast('对话已删除', 'success');
+    }
+};
+ 

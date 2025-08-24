@@ -42,6 +42,9 @@ def home():
 @app.route('/<path:path>')
 def serve_static(path):
     """提供静态文件服务"""
+    # 忽略一些特殊路径
+    if path == 'none' or path.startswith('.well-known/'):
+        return '', 204  # No Content
     if os.path.exists(path):
         return send_from_directory('.', path)
     return "File not found", 404
@@ -310,6 +313,140 @@ def list_chats():
         # 按修改时间排序
         files.sort(key=lambda x: x['modified'], reverse=True)
         return jsonify({"chats": files})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ==================== 世界书相关API ====================
+
+@app.route('/api/world/save', methods=['POST'])
+def save_world_entry():
+    """保存世界书条目"""
+    try:
+        entry = request.json
+        
+        # 生成条目ID
+        if not entry.get('id'):
+            entry['id'] = f"world_{uuid.uuid4().hex[:8]}"
+        
+        # 保存到文件
+        filename = f"{entry['id']}.json"
+        filepath = os.path.join('data/worlds', filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(entry, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "entry_id": entry['id'],
+            "message": "世界书条目已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/world/list', methods=['GET'])
+def get_world_list():
+    """获取世界书条目列表"""
+    try:
+        entries = []
+        if os.path.exists('data/worlds'):
+            for filename in os.listdir('data/worlds'):
+                if filename.endswith('.json'):
+                    filepath = os.path.join('data/worlds', filename)
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        entry = json.load(f)
+                        entries.append(entry)
+        
+        return jsonify({"entries": entries})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/world/delete/<entry_id>', methods=['DELETE'])
+def delete_world_entry(entry_id):
+    """删除世界书条目"""
+    try:
+        filepath = os.path.join('data/worlds', f"{entry_id}.json")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return jsonify({
+                "status": "success",
+                "message": "世界书条目已删除"
+            })
+        else:
+            return jsonify({"error": "条目不存在"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ==================== 角色卡相关API ====================
+
+@app.route('/api/character/save', methods=['POST'])
+def save_character():
+    """保存角色卡"""
+    try:
+        character = request.json
+        
+        # 生成角色ID
+        if not character.get('id'):
+            character['id'] = f"char_{uuid.uuid4().hex[:8]}"
+        
+        # 保存到文件
+        filename = f"{character['id']}.json"
+        filepath = os.path.join('data/characters', filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(character, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "character_id": character['id'],
+            "message": "角色卡已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/character/list', methods=['GET'])
+def get_character_list():
+    """获取角色卡列表"""
+    try:
+        characters = []
+        if os.path.exists('data/characters'):
+            for filename in os.listdir('data/characters'):
+                if filename.endswith('.json'):
+                    filepath = os.path.join('data/characters', filename)
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        character = json.load(f)
+                        characters.append(character)
+        
+        return jsonify({"characters": characters})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/character/get/<character_id>', methods=['GET'])
+def get_character(character_id):
+    """获取单个角色卡"""
+    try:
+        filepath = os.path.join('data/characters', f"{character_id}.json")
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                character = json.load(f)
+            return jsonify(character)
+        else:
+            return jsonify({"error": "角色不存在"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/character/delete/<character_id>', methods=['DELETE'])
+def delete_character(character_id):
+    """删除角色卡"""
+    try:
+        filepath = os.path.join('data/characters', f"{character_id}.json")
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return jsonify({
+                "status": "success",
+                "message": "角色已删除"
+            })
+        else:
+            return jsonify({"error": "角色不存在"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
