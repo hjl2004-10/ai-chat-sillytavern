@@ -450,6 +450,91 @@ def delete_character(character_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ========== 预设管理接口 ==========
+@app.route('/api/preset/save', methods=['POST'])
+def save_preset():
+    """保存预设到文件"""
+    try:
+        preset = request.json
+        preset_name = preset.get('name', 'unnamed')
+        
+        # 生成文件名（使用预设名称，替换特殊字符）
+        safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in preset_name)
+        filename = f"{safe_name}.json"
+        filepath = os.path.join('data/presets', filename)
+        
+        # 保存预设
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(preset, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "filename": filename,
+            "message": f"预设 '{preset_name}' 已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/preset/list', methods=['GET'])
+def get_preset_list():
+    """获取预设列表"""
+    try:
+        presets = []
+        if os.path.exists('data/presets'):
+            for filename in os.listdir('data/presets'):
+                if filename.endswith('.json'):
+                    filepath = os.path.join('data/presets', filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            preset = json.load(f)
+                            preset['filename'] = filename
+                            presets.append(preset)
+                    except json.JSONDecodeError:
+                        print(f"无法解析预设文件: {filename}")
+                        continue
+        
+        return jsonify({"presets": presets})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/preset/get/<preset_name>', methods=['GET'])
+def get_preset(preset_name):
+    """获取单个预设"""
+    try:
+        # 添加.json扩展名如果没有
+        if not preset_name.endswith('.json'):
+            preset_name += '.json'
+            
+        filepath = os.path.join('data/presets', preset_name)
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                preset = json.load(f)
+            return jsonify(preset)
+        else:
+            return jsonify({"error": "预设不存在"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/preset/delete/<preset_name>', methods=['DELETE'])
+def delete_preset(preset_name):
+    """删除预设"""
+    try:
+        # 添加.json扩展名如果没有
+        if not preset_name.endswith('.json'):
+            preset_name += '.json'
+            
+        filepath = os.path.join('data/presets', preset_name)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return jsonify({
+                "status": "success",
+                "message": "预设已删除"
+            })
+        else:
+            return jsonify({"error": "预设不存在"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # 加载已保存的配置
 if os.path.exists('data/config.json'):
     with open('data/config.json', 'r', encoding='utf-8') as f:
