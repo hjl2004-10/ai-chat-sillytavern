@@ -534,7 +534,6 @@ body.dark {
 .messages-container {
     flex: 1;
     width: 100%;
-    max-width: 900px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -543,7 +542,8 @@ body.dark {
 /* 当有消息时，调整chat-container布局 */
 .chat-container:has(.messages-container) {
     justify-content: flex-start;
-    align-items: stretch;
+    align-items: center;
+    padding: 0;
 }
 
 /* 当有消息时，输入框固定在底部 */
@@ -551,7 +551,7 @@ body.dark {
     position: sticky;
     bottom: 0;
     background: inherit;
-    padding: 20px 0;
+    padding: 20px;
     z-index: 10;
 }
 

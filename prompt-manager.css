@@ -1,0 +1,617 @@
+/* 提示词管理器样式 */
+.prompt-manager-panel {
+    width: 700px;  /* 缩小宽度 */
+    max-width: 90vw;
+}
+
+/* 预设选择器 */
+.preset-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.dark .preset-selector-container {
+    background: #2a2a2a;
+}
+
+.preset-selector-container label {
+    font-weight: 500;
+    color: #374151;
+}
+
+.dark .preset-selector-container label {
+    color: #d1d5db;
+}
+
+.preset-selector {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.dark .preset-selector {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #e5e7eb;
+}
+
+.preset-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dark .preset-menu-btn {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #e5e7eb;
+}
+
+.preset-menu-btn:hover {
+    background: #f9fafb;
+    transform: translateY(-1px);
+}
+
+.dark .preset-menu-btn:hover {
+    background: #2a2a2a;
+}
+
+/* 预设下拉菜单 */
+.preset-dropdown-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 4px 0;
+    min-width: 180px;
+    z-index: 10001;
+}
+
+.dark .preset-dropdown-menu {
+    background: #2a2a2a;
+    border-color: #444;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.preset-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 14px;
+    color: #374151;
+}
+
+.dark .preset-dropdown-item {
+    color: #e5e7eb;
+}
+
+.preset-dropdown-item:hover {
+    background: #f3f4f6;
+}
+
+.dark .preset-dropdown-item:hover {
+    background: #333;
+}
+
+.preset-dropdown-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.preset-dropdown-item.disabled:hover {
+    background: transparent;
+}
+
+.preset-dropdown-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.preset-dropdown-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 4px 0;
+}
+
+.dark .preset-dropdown-divider {
+    background: #444;
+}
+
+/* 工具栏 */
+.prompt-toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.dark .prompt-toolbar {
+    border-bottom-color: #333;
+}
+
+.add-prompt-btn,
+.reset-order-btn,
+.export-preset-btn,
+.import-preset-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.add-prompt-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.reset-order-btn {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.dark .reset-order-btn {
+    background: #2a2a2a;
+    color: #d1d5db;
+}
+
+.reset-order-btn:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+.dark .reset-order-btn:hover {
+    background: #333;
+}
+
+.export-preset-btn {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.export-preset-btn:hover {
+    background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+    transform: translateY(-1px);
+}
+
+.import-preset-btn {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+}
+
+.import-preset-btn:hover {
+    background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+    transform: translateY(-1px);
+}
+
+/* 信息提示 */
+.prompt-info {
+    padding: 15px;
+    background: #eff6ff;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.dark .prompt-info {
+    background: #1e3a8a;
+}
+
+.prompt-info p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #1e40af;
+}
+
+.dark .prompt-info p {
+    color: #93bbfc;
+}
+
+.info-hint {
+    font-size: 13px !important;
+    opacity: 0.8;
+}
+
+/* 提示词列表 */
+.prompt-list {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* 提示词项 */
+.prompt-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+    cursor: move;
+}
+
+.dark .prompt-item {
+    background: #2a2a2a;
+    border-color: #333;
+}
+
+.prompt-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dark .prompt-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.prompt-item.disabled {
+    opacity: 0.5;
+}
+
+.prompt-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+.prompt-item.drag-over-top {
+    border-top: 3px solid #3b82f6;
+}
+
+.prompt-item.drag-over-bottom {
+    border-bottom: 3px solid #3b82f6;
+}
+
+/* 拖拽手柄 */
+.prompt-drag-handle {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    cursor: grab;
+}
+
+.prompt-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* 提示词内容 */
+.prompt-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.prompt-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.prompt-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #111827;
+}
+
+.dark .prompt-name {
+    color: #f3f4f6;
+}
+
+.prompt-role {
+    padding: 2px 8px;
+    background: #e5e7eb;
+    color: #6b7280;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.dark .prompt-role {
+    background: #374151;
+    color: #9ca3af;
+}
+
+.prompt-text {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    cursor: pointer;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.dark .prompt-text {
+    color: #9ca3af;
+    background: #1a1a1a;
+}
+
+.prompt-text:hover {
+    background: #f3f4f6;
+}
+
+.dark .prompt-text:hover {
+    background: #333;
+}
+
+.prompt-placeholder {
+    font-size: 13px;
+    color: #9ca3af;
+    font-style: italic;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px dashed #e5e7eb;
+}
+
+.dark .prompt-placeholder {
+    background: #1a1a1a;
+    border-color: #333;
+}
+
+.prompt-settings {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.prompt-injection {
+    padding: 2px 6px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 4px;
+}
+
+.dark .prompt-injection {
+    background: #78350f;
+    color: #fbbf24;
+}
+
+/* 提示词操作 */
+.prompt-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 开关样式 */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #3b82f6;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* 编辑和删除按钮 */
+.edit-btn,
+.delete-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.edit-btn:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+.delete-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+/* 提示词编辑表单 */
+.prompt-edit-form {
+    padding: 20px;
+}
+
+.prompt-edit-form .form-group {
+    margin-bottom: 20px;
+}
+
+.prompt-edit-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+}
+
+.dark .prompt-edit-form label {
+    color: #d1d5db;
+}
+
+.prompt-edit-form input[type="text"],
+.prompt-edit-form input[type="number"],
+.prompt-edit-form select,
+.prompt-edit-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    color: #111827;
+}
+
+.dark .prompt-edit-form input[type="text"],
+.dark .prompt-edit-form input[type="number"],
+.dark .prompt-edit-form select,
+.dark .prompt-edit-form textarea {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #f3f4f6;
+}
+
+.prompt-edit-form textarea {
+    resize: vertical;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+}
+
+.prompt-variables {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #fef3c7;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #92400e;
+}
+
+.dark .prompt-variables {
+    background: #78350f;
+    color: #fbbf24;
+}
+
+.form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.form-group.half {
+    flex: 1;
+}
+
+.form-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.dark .form-buttons {
+    border-top-color: #333;
+}
+
+.form-buttons button {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.form-buttons button:first-child {
+    background: #3b82f6;
+    color: white;
+}
+
+.form-buttons button:first-child:hover {
+    background: #2563eb;
+}
+
+.form-buttons button:last-child {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.dark .form-buttons button:last-child {
+    background: #2a2a2a;
+    color: #d1d5db;
+}
+
+.form-buttons button:last-child:hover {
+    background: #e5e7eb;
+}
+
+.dark .form-buttons button:last-child:hover {
+    background: #374151;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .prompt-manager-panel {
+        width: 100%;
+    }
+    
+    .prompt-toolbar {
+        flex-direction: column;
+    }
+    
+    .prompt-item {
+        padding: 12px;
+    }
+    
+    .form-row {
+        flex-direction: column;
+    }
+}

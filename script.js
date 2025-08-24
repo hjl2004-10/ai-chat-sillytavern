@@ -79,8 +79,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
     
-    // 设置按钮点击事件
-    document.querySelector('.icon-button').addEventListener('click', showSettings);
+    // 设置按钮点击事件 - 改为显示AI设置面板
+    document.querySelector('.icon-button').addEventListener('click', function() {
+        if (typeof showAISettingsPanel === 'function') {
+            showAISettingsPanel();
+        } else {
+            showSettings(); // 备用的旧设置界面
+        }
+    });
     
     // 模型选择器点击事件
     modelSelector.addEventListener('click', showModelSelector);
@@ -122,6 +128,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 初始化世界书（如果有的话）
     if (typeof initWorldBook === 'function') {
         initWorldBook();
+    }
+    
+    // 初始化提示词管理器（如果有的话）
+    if (typeof initPromptManager === 'function') {
+        initPromptManager();
+    }
+    
+    // 初始化AI设置（如果有的话）
+    if (typeof initAISettings === 'function') {
+        initAISettings();
     }
     
     // 初始化显示
@@ -380,19 +396,48 @@ async function sendMessage() {
     contextMessages.push({ role: 'user', content: message });
     updateHistoryDisplay();
     
-    // 应用世界书（如果有的话）
-    let messagesWithWorldBook = contextMessages;
-    if (typeof injectWorldBookContent === 'function') {
-        messagesWithWorldBook = injectWorldBookContent(contextMessages);
+    // 构建完整的提示词和消息
+    let finalMessages = contextMessages;
+    
+    // 如果有提示词管理器，使用它来构建消息
+    if (typeof buildPromptMessages === 'function') {
+        // 准备用户设置
+        const userSettings = {
+            userName: localStorage.getItem('userName') || 'User',
+            persona: localStorage.getItem('userPersona') || ''
+        };
+        
+        // 获取当前角色信息
+        const character = window.currentCharacter || null;
+        
+        // 获取世界书信息
+        let worldInfo = null;
+        if (typeof checkWorldBookTriggers === 'function') {
+            const triggered = checkWorldBookTriggers(contextMessages);
+            if (triggered.length > 0) {
+                worldInfo = {
+                    before: triggered.filter(t => t.position === 'before').map(t => t.content).join('\n\n'),
+                    after: triggered.filter(t => t.position === 'after').map(t => t.content).join('\n\n')
+                };
+            }
+        }
+        
+        // 使用提示词管理器构建消息（新的对话补全格式）
+        finalMessages = buildPromptMessages(contextMessages, character, worldInfo, userSettings);
+    } else {
+        // 兼容旧的世界书注入方式
+        if (typeof injectWorldBookContent === 'function') {
+            finalMessages = injectWorldBookContent(contextMessages);
+        }
     }
     
     // 显示加载状态
     const loadingDiv = addMessageToChat('assistant', '', true);
     
     try {
-        // 准备请求数据（使用包含世界书的消息）
+        // 准备请求数据（使用构建好的完整消息）
         const requestData = {
-            messages: messagesWithWorldBook,
+            messages: finalMessages,
             model: config.model,
             temperature: config.temperature,
             max_tokens: config.max_tokens,
