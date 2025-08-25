@@ -1,6 +1,51 @@
 // 世界书管理模块
-let worldBookEntries = [];  // 世界书条目列表
-let activeWorldBook = null;  // 当前激活的世界书
+let worldBookEntries = [];  // 世界书条目列表（兼容旧版）
+let worldBooks = [];  // 多世界书列表
+let activeWorldBooks = [];  // 激活的世界书ID列表
+
+// 初始化世界书系统
+window.initWorldBookSystem = function() {
+    // 从localStorage加载世界书列表
+    const savedBooks = localStorage.getItem('worldBooks');
+    if (savedBooks) {
+        try {
+            worldBooks = JSON.parse(savedBooks);
+        } catch (e) {
+            worldBooks = [];
+        }
+    }
+    
+    // 加载激活状态
+    const activeIds = localStorage.getItem('activeWorldBooks');
+    if (activeIds) {
+        try {
+            activeWorldBooks = JSON.parse(activeIds);
+        } catch (e) {
+            activeWorldBooks = [];
+        }
+    }
+    
+    // 兼容旧版数据
+    const oldEntries = localStorage.getItem('worldBookEntries');
+    if (oldEntries && worldBooks.length === 0) {
+        try {
+            const entries = JSON.parse(oldEntries);
+            if (entries.length > 0) {
+                // 将旧条目转换为默认世界书
+                worldBooks.push({
+                    id: 'wb_default',
+                    name: '默认世界书',
+                    description: '从旧版本迁移的世界书',
+                    entries: entries,
+                    createDate: new Date().toISOString(),
+                    active: true
+                });
+                activeWorldBooks = ['wb_default'];
+                saveWorldBooks();
+            }
+        } catch (e) {}
+    }
+};
 
 // 显示世界书面板
 window.showWorldBookPanel = function() {
@@ -34,6 +79,23 @@ window.showWorldBookPanel = function() {
         </div>
         
         <div class="side-panel-content">
+            <!-- 世界书选择器 -->
+            <div class="world-selector">
+                <select id="worldBookSelector" onchange="switchWorldBook(this.value)" class="world-select">
+                    <option value="">选择世界书...</option>
+                </select>
+                <button onclick="createNewWorldBook()" class="world-btn-small" title="新建世界书">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- 世界书列表 -->
+            <div class="world-books-list" id="worldBooksList">
+                <!-- 动态生成 -->
+            </div>
+            
             <div class="world-toolbar">
                 <button onclick="createNewWorldEntry()" class="world-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -53,7 +115,7 @@ window.showWorldBookPanel = function() {
                 </button>
                 <input type="file" id="worldImportFile" accept=".json" style="display: none;" onchange="importWorldBook(this.files[0])" />
                 
-                <button onclick="exportWorldBook()" class="world-btn">
+                <button onclick="exportCurrentWorldBook()" class="world-btn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
@@ -79,11 +141,192 @@ window.showWorldBookPanel = function() {
     }, 10);
     
     // 加载世界书列表
+    updateWorldBooksDisplay();
     loadWorldBookList();
+};
+
+// 更新世界书列表显示
+function updateWorldBooksDisplay() {
+    const listContainer = document.getElementById('worldBooksList');
+    const selector = document.getElementById('worldBookSelector');
+    
+    if (!listContainer) return;
+    
+    // 更新选择器
+    if (selector) {
+        selector.innerHTML = '<option value="">选择世界书...</option>';
+        worldBooks.forEach(wb => {
+            const option = document.createElement('option');
+            option.value = wb.id;
+            option.textContent = wb.name;
+            selector.appendChild(option);
+        });
+    }
+    
+    // 更新列表
+    if (worldBooks.length === 0) {
+        listContainer.innerHTML = '<p class="no-entries">暂无世界书，点击+按钮创建</p>';
+    } else {
+        listContainer.innerHTML = worldBooks.map(wb => {
+            const isActive = activeWorldBooks.includes(wb.id);
+            const entryCount = wb.entries ? wb.entries.length : 0;
+            return `
+                <div class="world-book-item ${isActive ? 'active' : ''}" data-id="${wb.id}">
+                    <div class="wb-header">
+                        <input type="checkbox" 
+                               class="wb-checkbox" 
+                               ${isActive ? 'checked' : ''}
+                               onchange="toggleWorldBook('${wb.id}', this.checked)">
+                        <div class="wb-info" onclick="selectWorldBook('${wb.id}')">
+                            <div class="wb-name">${escapeHtml(wb.name)}</div>
+                            <div class="wb-meta">${entryCount} 条目</div>
+                        </div>
+                        <div class="wb-actions">
+                            <button onclick="editWorldBook('${wb.id}')" title="编辑">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="deleteWorldBook('${wb.id}')" title="删除">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    ${wb.description ? `<div class="wb-description">${escapeHtml(wb.description)}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+// 创建新世界书
+window.createNewWorldBook = function() {
+    const modal = createModal('创建世界书', '');
+    const form = document.createElement('div');
+    form.className = 'world-form';
+    form.innerHTML = `
+        <div class="form-group">
+            <label>世界书名称 *</label>
+            <input type="text" id="new-wb-name" placeholder="例如：魔法世界设定">
+        </div>
+        <div class="form-group">
+            <label>描述（可选）</label>
+            <textarea id="new-wb-desc" rows="3" placeholder="简要描述这个世界书的内容"></textarea>
+        </div>
+        <div class="form-buttons">
+            <button onclick="saveNewWorldBook()">创建</button>
+            <button onclick="this.closest('.modal').remove()">取消</button>
+        </div>
+    `;
+    modal.querySelector('.modal-body').appendChild(form);
+};
+
+// 保存新世界书
+window.saveNewWorldBook = function() {
+    const name = document.getElementById('new-wb-name').value.trim();
+    const desc = document.getElementById('new-wb-desc').value.trim();
+    
+    if (!name) {
+        showToast('请输入世界书名称', 'warning');
+        return;
+    }
+    
+    const worldBook = {
+        id: 'wb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        name: name,
+        description: desc,
+        entries: [],
+        createDate: new Date().toISOString(),
+        active: false
+    };
+    
+    worldBooks.push(worldBook);
+    saveWorldBooks();
+    
+    document.querySelector('.modal').remove();
+    updateWorldBooksDisplay();
+    showToast('世界书创建成功', 'success');
+};
+
+// 选择世界书
+window.selectWorldBook = function(worldBookId) {
+    const selector = document.getElementById('worldBookSelector');
+    if (selector) {
+        selector.value = worldBookId;
+    }
+    switchWorldBook(worldBookId);
+};
+
+// 切换当前编辑的世界书
+window.switchWorldBook = function(worldBookId) {
+    if (!worldBookId) {
+        worldBookEntries = [];
+        updateWorldBookDisplay();
+        return;
+    }
+    
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (worldBook) {
+        worldBookEntries = worldBook.entries || [];
+        updateWorldBookDisplay();
+    }
+};
+
+// 激活/禁用世界书
+window.toggleWorldBook = function(worldBookId, active) {
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (worldBook) {
+        worldBook.active = active;
+        
+        if (active && !activeWorldBooks.includes(worldBookId)) {
+            activeWorldBooks.push(worldBookId);
+        } else if (!active) {
+            activeWorldBooks = activeWorldBooks.filter(id => id !== worldBookId);
+        }
+        
+        saveActiveWorldBooks();
+        updateWorldBooksDisplay();
+        showToast(`世界书"${worldBook.name}"已${active ? '激活' : '禁用'}`, 'success');
+    }
+};
+
+// 删除世界书
+window.deleteWorldBook = function(worldBookId) {
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (!worldBook) return;
+    
+    if (confirm(`确定要删除世界书"${worldBook.name}"吗？\n该操作将删除其中的所有条目。`)) {
+        const index = worldBooks.findIndex(wb => wb.id === worldBookId);
+        worldBooks.splice(index, 1);
+        activeWorldBooks = activeWorldBooks.filter(id => id !== worldBookId);
+        
+        saveWorldBooks();
+        saveActiveWorldBooks();
+        updateWorldBooksDisplay();
+        
+        // 如果当前选中的是这个世界书，清空条目列表
+        const selector = document.getElementById('worldBookSelector');
+        if (selector && selector.value === worldBookId) {
+            selector.value = '';
+            worldBookEntries = [];
+            updateWorldBookDisplay();
+        }
+        
+        showToast('世界书已删除', 'success');
+    }
 };
 
 // 创建新的世界书条目
 window.createNewWorldEntry = function() {
+    const selector = document.getElementById('worldBookSelector');
+    if (!selector || !selector.value) {
+        showToast('请先选择或创建一个世界书', 'warning');
+        return;
+    }
     const modal = createModal('创建世界书条目', '');
     const entryForm = document.createElement('div');
     entryForm.className = 'world-form';
@@ -105,8 +348,22 @@ window.createNewWorldEntry = function() {
             </div>
             
             <div class="form-group half">
+                <label>触发概率 <span class="form-hint">(%)</span></label>
+                <input type="number" id="world-probability" value="100" min="0" max="100">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group half">
                 <label>扫描深度 <span class="form-hint">（扫描最近N条消息）</span></label>
                 <input type="number" id="world-depth" value="4" min="1" max="100">
+            </div>
+            
+            <div class="form-group half">
+                <label>
+                    <input type="checkbox" id="world-use-probability" checked>
+                    启用概率触发
+                </label>
             </div>
         </div>
         
@@ -161,6 +418,8 @@ window.saveNewWorldEntry = async function() {
         keys: keys.split(',').map(k => k.trim()).filter(k => k),
         content: content,
         order: parseInt(document.getElementById('world-order').value) || 100,
+        probability: parseInt(document.getElementById('world-probability').value) || 100,
+        use_probability: document.getElementById('world-use-probability').checked,
         depth: parseInt(document.getElementById('world-depth').value) || 4,
         position: document.getElementById('world-position').value,
         enabled: document.getElementById('world-enabled').checked,
@@ -169,38 +428,28 @@ window.saveNewWorldEntry = async function() {
         create_date: new Date().toISOString()
     };
     
-    try {
-        // 保存到服务器
-        const response = await fetch(`${config.api_base}/world/save`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(entry)
-        });
-        
-        if (response.ok) {
-            // 添加到本地列表
-            worldBookEntries.push(entry);
-            saveWorldBookToLocal();
-            
-            // 关闭创建窗口
-            document.querySelector('.modal').remove();
-            
-            // 刷新世界书面板
-            showWorldBookPanel();
-            
-            showToast('世界书条目创建成功', 'success');
+    // 添加到当前世界书
+    const selector = document.getElementById('worldBookSelector');
+    if (selector && selector.value) {
+        const worldBook = worldBooks.find(wb => wb.id === selector.value);
+        if (worldBook) {
+            if (!worldBook.entries) worldBook.entries = [];
+            worldBook.entries.push(entry);
+            saveWorldBooks();
         }
-    } catch (error) {
-        console.error('保存世界书条目失败:', error);
-        // 即使服务器保存失败，也保存到本地
-        worldBookEntries.push(entry);
-        saveWorldBookToLocal();
-        document.querySelector('.modal').remove();
-        showWorldBookPanel();
-        showToast('条目已保存到本地', 'info');
     }
+    
+    // 更新当前显示
+    worldBookEntries.push(entry);
+    saveWorldBookToLocal();
+    
+    // 关闭创建窗口
+    document.querySelector('.modal').remove();
+    
+    // 刷新显示
+    updateWorldBookDisplay();
+    
+    showToast('世界书条目创建成功', 'success');
 };
 
 // 加载世界书列表
@@ -582,6 +831,25 @@ window.exportWorldBook = function() {
 // 保存世界书到本地存储
 function saveWorldBookToLocal() {
     localStorage.setItem('worldBookEntries', JSON.stringify(worldBookEntries));
+    // 同时更新当前世界书的条目
+    const selector = document.getElementById('worldBookSelector');
+    if (selector && selector.value) {
+        const worldBook = worldBooks.find(wb => wb.id === selector.value);
+        if (worldBook) {
+            worldBook.entries = worldBookEntries;
+            saveWorldBooks();
+        }
+    }
+}
+
+// 保存多世界书列表
+function saveWorldBooks() {
+    localStorage.setItem('worldBooks', JSON.stringify(worldBooks));
+}
+
+// 保存激活状态
+function saveActiveWorldBooks() {
+    localStorage.setItem('activeWorldBooks', JSON.stringify(activeWorldBooks));
 }
 
 // 保存条目到服务器
@@ -601,13 +869,27 @@ async function saveWorldEntryToServer(entry) {
 
 // 检查消息中的关键词并返回匹配的世界书内容
 window.checkWorldBookTriggers = function(messages) {
-    if (!worldBookEntries || worldBookEntries.length === 0) return [];
+    const triggered = [];
+    
+    // 收集所有激活世界书的条目
+    const allEntries = [];
+    for (const bookId of activeWorldBooks) {
+        const worldBook = worldBooks.find(wb => wb.id === bookId);
+        if (worldBook && worldBook.entries) {
+            worldBook.entries.forEach(entry => {
+                allEntries.push({
+                    ...entry,
+                    worldBookName: worldBook.name
+                });
+            });
+        }
+    }
+    
+    if (allEntries.length === 0) return [];
     
     // 只检查启用的条目
-    const enabledEntries = worldBookEntries.filter(entry => entry.enabled);
+    const enabledEntries = allEntries.filter(entry => entry.enabled);
     if (enabledEntries.length === 0) return [];
-    
-    const triggered = [];
     
     // 按优先级排序
     const sortedEntries = [...enabledEntries].sort((a, b) => a.order - b.order);
@@ -618,8 +900,16 @@ window.checkWorldBookTriggers = function(messages) {
         const recentMessages = messages.slice(-depth);
         const textToScan = recentMessages.map(msg => msg.content).join(' ').toLowerCase();
         
+        // 检查概率
+        if (entry.use_probability && entry.probability < 100) {
+            const roll = Math.random() * 100;
+            if (roll > entry.probability) {
+                continue; // 概率检查未通过
+            }
+        }
+        
         // 检查关键词
-        const hasMatch = entry.keys.some(key => {
+        const hasMatch = entry.keys && entry.keys.length > 0 && entry.keys.some(key => {
             const keyLower = key.toLowerCase();
             return textToScan.includes(keyLower);
         });
@@ -628,7 +918,9 @@ window.checkWorldBookTriggers = function(messages) {
             triggered.push({
                 content: entry.content,
                 position: entry.position || 'before',
-                order: entry.order
+                order: entry.order,
+                worldBookName: entry.worldBookName || '',
+                title: entry.title
             });
         }
     }
