@@ -238,45 +238,94 @@ def clear_context():
 # ==================== 世界书相关API ====================
 
 @app.route('/api/world/save', methods=['POST'])
-def save_world_entry():
-    """保存世界书条目"""
+def save_world_book():
+    """保存整个世界书（SillyTavern格式）"""
     try:
-        entry = request.json
+        data = request.json
         
-        # 生成条目ID
-        if not entry.get('id'):
-            entry['id'] = f"world_{uuid.uuid4().hex[:8]}"
+        # 获取元数据
+        metadata = data.get('_metadata', {})
+        book_id = metadata.get('id') or f"wb_{uuid.uuid4().hex[:8]}"
         
-        # 使用安全的文件名（去除特殊字符）
-        safe_id = entry['id'].replace('/', '_').replace('\\', '_').replace(':', '_')
+        # 使用安全的文件名
+        safe_id = book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
         filename = f"{safe_id}.json"
         filepath = os.path.join('data/worlds', filename)
         
+        # 直接保存SillyTavern格式
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(entry, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2)
         
         return jsonify({
             "status": "success",
-            "entry_id": entry['id'],
-            "message": "世界书条目已保存"
+            "id": book_id,
+            "message": "世界书已保存"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/world/list', methods=['GET'])
 def get_world_list():
-    """获取世界书条目列表"""
+    """获取所有世界书"""
     try:
-        entries = []
+        world_books = []
         if os.path.exists('data/worlds'):
             for filename in os.listdir('data/worlds'):
                 if filename.endswith('.json'):
                     filepath = os.path.join('data/worlds', filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        entry = json.load(f)
-                        entries.append(entry)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            
+                            # 处理SillyTavern格式
+                            if 'entries' in data:
+                                # 转换为内部格式
+                                world_book = {
+                                    'id': filename.replace('.json', ''),
+                                    'name': data.get('_metadata', {}).get('name', filename.replace('.json', '')),
+                                    'description': data.get('_metadata', {}).get('description', ''),
+                                    'createDate': data.get('_metadata', {}).get('createDate', ''),
+                                    'active': data.get('_metadata', {}).get('active', False),
+                                    'entries': [],
+                                    'originalFormat': data  # 保存原始格式
+                                }
+                                
+                                # 转换entries
+                                if isinstance(data['entries'], dict):
+                                    for key, entry in data['entries'].items():
+                                        world_book['entries'].append({
+                                            'id': f"entry_{entry.get('uid', key)}",
+                                            'keys': entry.get('key', []),
+                                            'secondary_keys': entry.get('keysecondary', []),
+                                            'content': entry.get('content', ''),
+                                            'title': entry.get('comment', ''),
+                                            'order': entry.get('order', 100),
+                                            'position': 'before' if entry.get('position', 0) == 0 else 'after',
+                                            'enabled': not entry.get('disable', False),
+                                            'probability': entry.get('probability', 100),
+                                            'use_probability': entry.get('useProbability', True),
+                                            'depth': entry.get('depth', 4),
+                                            'constant': entry.get('constant', False),
+                                            'selective': entry.get('selective', True),
+                                            'case_sensitive': entry.get('caseSensitive'),
+                                            'match_whole_words': entry.get('matchWholeWords'),
+                                            'exclude_recursion': entry.get('excludeRecursion', False),
+                                            'prevent_recursion': entry.get('preventRecursion', False),
+                                            'delay_until_recursion': entry.get('delayUntilRecursion', False),
+                                            'group': entry.get('group', ''),
+                                            'automation_id': entry.get('automationId', ''),
+                                            'role': entry.get('role'),
+                                            'sticky': entry.get('sticky', 0),
+                                            'cooldown': entry.get('cooldown', 0),
+                                            'delay': entry.get('delay', 0)
+                                        })
+                                
+                                world_books.append(world_book)
+                    except Exception as e:
+                        print(f"Error loading {filename}: {e}")
+                        continue
         
-        return jsonify({"entries": entries})
+        return jsonify({"worldBooks": world_books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -286,86 +335,45 @@ def import_world_book():
     try:
         world_book = request.json
         
-        # 保存世界书
+        # 保存整个世界书为一个文件
         book_id = world_book.get('id', f"wb_{uuid.uuid4().hex[:8]}")
         safe_id = book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
         
-        # 保存世界书元数据
-        meta_file = os.path.join('data/worlds', f"{safe_id}_meta.json")
-        with open(meta_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                'id': book_id,
-                'name': world_book.get('name', '未命名'),
-                'description': world_book.get('description', ''),
-                'createDate': world_book.get('createDate'),
-                'active': world_book.get('active', False)
-            }, f, ensure_ascii=False, indent=2)
-        
-        # 保存每个条目
-        entries = world_book.get('entries', [])
-        for entry in entries:
-            entry_id = entry.get('id', f"entry_{uuid.uuid4().hex[:8]}")
-            entry_safe_id = entry_id.replace('/', '_').replace('\\', '_').replace(':', '_')
-            entry_file = os.path.join('data/worlds', f"{safe_id}_{entry_safe_id}.json")
-            
-            with open(entry_file, 'w', encoding='utf-8') as f:
-                json.dump(entry, f, ensure_ascii=False, indent=2)
+        # 保存完整的世界书数据
+        world_file = os.path.join('data/worlds', f"{safe_id}.json")
+        with open(world_file, 'w', encoding='utf-8') as f:
+            json.dump(world_book, f, ensure_ascii=False, indent=2)
         
         return jsonify({
             "status": "success",
             "id": book_id,
-            "message": f"世界书已导入，包含 {len(entries)} 个条目"
+            "message": f"世界书已导入，包含 {len(world_book.get('entries', []))} 个条目"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/world/delete/<path:entry_id>', methods=['DELETE'])
-def delete_world_entry(entry_id):
-    """删除世界书条目"""
+@app.route('/api/world/delete/<path:world_book_id>', methods=['DELETE'])
+def delete_world_book(world_book_id):
+    """删除世界书"""
     try:
         # 使用安全的文件名
-        safe_id = entry_id.replace('/', '_').replace('\\', '_').replace(':', '_')
+        safe_id = world_book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
         
-        # 尝试直接使用ID作为文件名
+        # 直接删除世界书文件
         filepath = os.path.join('data/worlds', f"{safe_id}.json")
         
-        # 如果文件不存在，尝试查找所有文件并匹配ID
-        if not os.path.exists(filepath):
-            found = False
-            if os.path.exists('data/worlds'):
-                for filename in os.listdir('data/worlds'):
-                    if filename.endswith('.json'):
-                        file_path = os.path.join('data/worlds', filename)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                # 检查多种ID格式
-                                data_id = str(data.get('id', ''))
-                                data_uid = str(data.get('uid', ''))
-                                
-                                if (data_id == entry_id or 
-                                    data_uid == entry_id or 
-                                    f"world_{data_uid}" == entry_id or
-                                    data_id == safe_id):
-                                    os.remove(file_path)
-                                    found = True
-                                    break
-                        except:
-                            continue
-            
-            if not found:
-                # 如果还是找不到，返回成功（可能已被删除）
-                return jsonify({
-                    "status": "success",
-                    "message": "世界书条目已删除（或不存在）"
-                })
-        else:
+        if os.path.exists(filepath):
             os.remove(filepath)
-        
-        return jsonify({
-            "status": "success",
-            "message": "世界书条目已删除"
-        })
+            return jsonify({
+                "status": "success",
+                "message": "世界书已删除"
+            })
+        else:
+            # 文件不存在，可能已被删除
+            return jsonify({
+                "status": "success",
+                "message": "世界书已删除（或不存在）"
+            })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -510,22 +510,41 @@ window.saveNewWorldEntry = async function() {
 // 加载世界书列表
 async function loadWorldBookList() {
     try {
-        // 从服务器加载
+        // 从服务器加载所有世界书
         const response = await fetch(`${config.api_base}/world/list`);
         if (response.ok) {
             const data = await response.json();
-            worldBookEntries = data.entries || [];
-            saveWorldBookToLocal();
+            if (data.worldBooks) {
+                worldBooks = data.worldBooks;
+                saveWorldBooks();
+                
+                // 恢复激活状态
+                const savedActive = localStorage.getItem('activeWorldBooks');
+                if (savedActive) {
+                    activeWorldBooks = JSON.parse(savedActive);
+                }
+                
+                // 更新显示
+                updateWorldBooksDisplay();
+                
+                // 如果有选中的世界书，加载它的条目
+                const selector = document.getElementById('worldBookSelector');
+                if (selector && selector.value) {
+                    switchWorldBook(selector.value);
+                }
+            }
         }
     } catch (error) {
+        console.error('加载世界书失败:', error);
         // 从本地加载
-        const saved = localStorage.getItem('worldBookEntries');
-        if (saved) {
-            worldBookEntries = JSON.parse(saved);
+        const savedBooks = localStorage.getItem('worldBooks');
+        if (savedBooks) {
+            worldBooks = JSON.parse(savedBooks);
+            updateWorldBooksDisplay();
         }
     }
     
-    // 更新显示
+    // 更新当前选中世界书的条目显示
     updateWorldBookDisplay();
 }
 
@@ -578,7 +597,7 @@ function updateWorldBookDisplay() {
                             '<span class="no-keys-tag">无关键词</span>'
                         }
                     </div>
-                    <div class="entry-content">${escapeHtml(entry.content.substring(0, 100))}${entry.content.length > 100 ? '...' : ''}</div>
+                    <div class="entry-content">${entry.content ? escapeHtml(entry.content.substring(0, 100)) + (entry.content.length > 100 ? '...' : '') : '<span class="no-content">无内容</span>'}</div>
                     <div class="entry-meta">
                         <span>位置: ${entry.position === 'before' ? '前置' : '后置'}</span>
                         <span>深度: ${entry.depth}</span>
@@ -598,8 +617,15 @@ window.toggleWorldEntry = function(index) {
         saveWorldBookToLocal();
         updateWorldBookDisplay();
         
-        // 同步到服务器
-        saveWorldEntryToServer(worldBookEntries[index]);
+        // 同步整个世界书到服务器
+        const selector = document.getElementById('worldBookSelector');
+        if (selector && selector.value) {
+            const worldBook = worldBooks.find(wb => wb.id === selector.value);
+            if (worldBook) {
+                worldBook.entries = worldBookEntries;
+                saveWorldBookToServer(worldBook);
+            }
+        }
     }
 };
 
@@ -887,14 +913,16 @@ window.importWorldBook = async function(file) {
                 }
             }
             
-            // 创建新的世界书对象
+            // 创建新的世界书对象（内部格式）
             const newWorldBook = {
                 id: 'wb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                 name: worldBookName,
                 description: worldBookDesc,
                 entries: processedEntries,
                 createDate: new Date().toISOString(),
-                active: false
+                active: false,
+                // 保存原始SillyTavern格式数据，方便后续导出
+                originalFormat: data
             };
             
             // 添加到世界书列表
@@ -907,22 +935,8 @@ window.importWorldBook = async function(file) {
             // 自动选中并显示导入的世界书
             selectWorldBook(newWorldBook.id);
             
-            // 保存到后端
-            try {
-                const response = await fetch(`${config.api_base}/world/import`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(newWorldBook)
-                });
-                
-                if (!response.ok) {
-                    console.error('保存到后端失败');
-                }
-            } catch (error) {
-                console.error('保存到后端失败:', error);
-            }
+            // 保存到后端（使用统一的保存函数）
+            await saveWorldBookToServer(newWorldBook);
             
             const importedCount = processedEntries.length;
             showToast(`成功导入世界书"${worldBookName}"，包含 ${importedCount} 个条目`, 'success');
@@ -954,30 +968,48 @@ window.exportCurrentWorldBook = function() {
         return;
     }
     
-    // 转换为兼容格式
+    // 转换为SillyTavern完全兼容格式
     const exportData = {
-        name: worldBook.name,
-        description: worldBook.description,
-        entries: worldBook.entries,
-        // 添加SillyTavern兼容字段
-        world_info: worldBook.entries.map(entry => ({
-            uid: parseInt(entry.id.replace(/\D/g, '')) || Date.now(),
-            key: entry.keys,
-            keysecondary: [],
-            content: entry.content,
-            comment: entry.title,
-            order: entry.order,
-            position: entry.position === 'before' ? 0 : 1,
-            depth: entry.depth,
-            disable: !entry.enabled,
-            selective: true,
-            constant: false,
-            probability: entry.probability || 100,
-            useProbability: entry.use_probability !== false,
-            group: '',
-            displayIndex: worldBook.entries.indexOf(entry)
-        }))
+        "entries": {}
     };
+    
+    // 将条目数组转换为对象格式
+    worldBook.entries.forEach((entry, index) => {
+        exportData.entries[index.toString()] = {
+            "uid": index,
+            "key": entry.keys || [],
+            "keysecondary": entry.secondary_keys || [],
+            "comment": entry.title || '',
+            "content": entry.content || '',
+            "constant": entry.constant || false,
+            "vectorized": false,
+            "selective": entry.selective !== false,
+            "selectiveLogic": 0,
+            "addMemo": true,
+            "order": entry.order || 100,
+            "position": entry.position === 'before' ? 0 : 1,
+            "disable": !entry.enabled,
+            "excludeRecursion": entry.exclude_recursion || false,
+            "preventRecursion": entry.prevent_recursion || false,
+            "delayUntilRecursion": entry.delay_until_recursion || false,
+            "probability": entry.probability || 100,
+            "useProbability": entry.use_probability !== false,
+            "depth": entry.depth || 4,
+            "group": entry.group || "",
+            "groupOverride": false,
+            "groupWeight": 100,
+            "scanDepth": null,
+            "caseSensitive": entry.case_sensitive || null,
+            "matchWholeWords": entry.match_whole_words || null,
+            "useGroupScoring": null,
+            "automationId": entry.automation_id || "",
+            "role": entry.role || null,
+            "sticky": entry.sticky || 0,
+            "cooldown": entry.cooldown || 0,
+            "delay": entry.delay || 0,
+            "displayIndex": index
+        };
+    });
     
     const json = JSON.stringify(exportData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -1026,6 +1058,8 @@ function saveWorldBookToLocal() {
         if (worldBook) {
             worldBook.entries = worldBookEntries;
             saveWorldBooks();
+            // 同步保存到服务器
+            saveWorldBookToServer(worldBook);
         }
     }
 }
@@ -1033,6 +1067,10 @@ function saveWorldBookToLocal() {
 // 保存多世界书列表
 function saveWorldBooks() {
     localStorage.setItem('worldBooks', JSON.stringify(worldBooks));
+    // 保存每个世界书到服务器
+    worldBooks.forEach(wb => {
+        saveWorldBookToServer(wb);
+    });
 }
 
 // 保存激活状态
@@ -1040,16 +1078,93 @@ function saveActiveWorldBooks() {
     localStorage.setItem('activeWorldBooks', JSON.stringify(activeWorldBooks));
 }
 
-// 保存条目到服务器
-async function saveWorldEntryToServer(entry) {
+// 保存世界书到服务器
+async function saveWorldBookToServer(worldBook) {
     try {
-        await fetch(`${config.api_base}/world/save`, {
+        // 如果有原始格式，转换回SillyTavern格式保存
+        let saveData = worldBook;
+        
+        // 如果没有原始格式，创建SillyTavern格式
+        if (!worldBook.originalFormat) {
+            const sillyTavernFormat = {
+                "entries": {}
+            };
+            
+            if (worldBook.entries) {
+                worldBook.entries.forEach((entry, index) => {
+                    sillyTavernFormat.entries[index.toString()] = {
+                        "uid": index,
+                        "key": entry.keys || [],
+                        "keysecondary": entry.secondary_keys || [],
+                        "comment": entry.title || '',
+                        "content": entry.content || '',
+                        "constant": entry.constant || false,
+                        "vectorized": false,
+                        "selective": entry.selective !== false,
+                        "selectiveLogic": 0,
+                        "addMemo": true,
+                        "order": entry.order || 100,
+                        "position": entry.position === 'before' ? 0 : 1,
+                        "disable": !entry.enabled,
+                        "excludeRecursion": entry.exclude_recursion || false,
+                        "preventRecursion": entry.prevent_recursion || false,
+                        "delayUntilRecursion": entry.delay_until_recursion || false,
+                        "probability": entry.probability || 100,
+                        "useProbability": entry.use_probability !== false,
+                        "depth": entry.depth || 4,
+                        "group": entry.group || "",
+                        "groupOverride": false,
+                        "groupWeight": 100,
+                        "scanDepth": null,
+                        "caseSensitive": entry.case_sensitive || null,
+                        "matchWholeWords": entry.match_whole_words || null,
+                        "useGroupScoring": null,
+                        "automationId": entry.automation_id || "",
+                        "role": entry.role || null,
+                        "sticky": entry.sticky || 0,
+                        "cooldown": entry.cooldown || 0,
+                        "delay": entry.delay || 0,
+                        "displayIndex": index
+                    };
+                });
+            }
+            
+            // 保存SillyTavern格式，但附加我们的元数据
+            saveData = {
+                ...sillyTavernFormat,
+                _metadata: {
+                    id: worldBook.id,
+                    name: worldBook.name,
+                    description: worldBook.description,
+                    createDate: worldBook.createDate,
+                    active: worldBook.active
+                }
+            };
+        } else {
+            // 使用原始格式，但添加元数据
+            saveData = {
+                ...worldBook.originalFormat,
+                _metadata: {
+                    id: worldBook.id,
+                    name: worldBook.name,
+                    description: worldBook.description,
+                    createDate: worldBook.createDate,
+                    active: worldBook.active
+                }
+            };
+        }
+        
+        const response = await fetch(`${config.api_base}/world/save`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(entry)
+            body: JSON.stringify(saveData)
         });
+        
+        if (!response.ok) {
+            console.error('保存世界书到服务器失败');
+        }
     } catch (error) {
         console.error('保存到服务器失败:', error);
     }
