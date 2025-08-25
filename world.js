@@ -269,7 +269,10 @@ function updateWorldBookDisplay() {
                         </div>
                     </div>
                     <div class="entry-keys">
-                        ${entry.keys.map(key => `<span class="key-tag">${escapeHtml(key)}</span>`).join('')}
+                        ${entry.keys && entry.keys.length > 0 ? 
+                            entry.keys.map(key => `<span class="key-tag">${escapeHtml(key)}</span>`).join('') :
+                            '<span class="no-keys-tag">无关键词</span>'
+                        }
                     </div>
                     <div class="entry-content">${escapeHtml(entry.content.substring(0, 100))}${entry.content.length > 100 ? '...' : ''}</div>
                     <div class="entry-meta">
@@ -441,11 +444,17 @@ window.importWorldBook = async function(file) {
             if (Array.isArray(data)) {
                 // 直接是条目数组
                 entries = data;
-            } else if (data.entries && Array.isArray(data.entries)) {
-                // 包含entries字段
-                entries = data.entries;
+            } else if (data.entries) {
+                // SillyTavern 新格式 - entries是对象
+                if (typeof data.entries === 'object' && !Array.isArray(data.entries)) {
+                    // 将对象转换为数组
+                    entries = Object.values(data.entries);
+                } else if (Array.isArray(data.entries)) {
+                    // entries是数组
+                    entries = data.entries;
+                }
             } else if (data.world_info && Array.isArray(data.world_info)) {
-                // SillyTavern格式
+                // SillyTavern旧格式
                 entries = data.world_info;
             } else {
                 showToast('无效的世界书格式', 'error');
@@ -454,22 +463,53 @@ window.importWorldBook = async function(file) {
             
             // 转换并添加条目
             for (const item of entries) {
+                // 处理SillyTavern格式
+                let keys = [];
+                if (item.key && Array.isArray(item.key) && item.key.length > 0) {
+                    keys = item.key;
+                } else if (item.keys && Array.isArray(item.keys) && item.keys.length > 0) {
+                    keys = item.keys;
+                } else if (item.keysecondary && Array.isArray(item.keysecondary) && item.keysecondary.length > 0) {
+                    // 备用关键词
+                    keys = item.keysecondary;
+                }
+                
+                // 获取位置（SillyTavern用0表示before，1表示after）
+                let position = 'before';
+                if (item.position === 1 || item.position === 'after') {
+                    position = 'after';
+                }
+                
+                // 条目名称使用comment字段，而不是把它当作关键词
+                const title = item.comment || item.title || item.name || '未命名';
+                
                 const entry = {
-                    id: item.id || 'world_' + Date.now() + Math.random().toString(36).substr(2, 9),
-                    keys: item.keys || item.key || [],
-                    content: item.content || item.entry || '',
-                    order: item.order || item.insertion_order || 100,
-                    depth: item.depth || item.extensions?.depth || 4,
-                    position: item.position || item.extensions?.position || 'before',
-                    enabled: item.enabled !== false,
-                    title: item.title || item.comment || (item.keys && item.keys[0]) || '未命名',
-                    comment: item.comment || '',
+                    id: item.uid !== undefined ? 'world_' + item.uid : (item.id || 'world_' + Date.now() + Math.random().toString(36).substr(2, 9)),
+                    keys: keys, // 保持原始的keys数组，可能为空
+                    content: item.content || item.entry || item.value || '',
+                    order: item.order || item.insertion_order || item.priority || 100,
+                    depth: item.depth || item.extensions?.depth || item.scan_depth || 4,
+                    position: position,
+                    enabled: item.disable !== true && item.enabled !== false,
+                    title: title, // 使用comment作为标题，而不是关键词
+                    comment: item.memo || item.note || '', // comment已经用作title了
                     create_date: item.create_date || new Date().toISOString()
                 };
                 
                 // 确保keys是数组
                 if (typeof entry.keys === 'string') {
-                    entry.keys = entry.keys.split(',').map(k => k.trim());
+                    entry.keys = entry.keys.split(',').map(k => k.trim()).filter(k => k);
+                } else if (!Array.isArray(entry.keys)) {
+                    entry.keys = [];
+                }
+                
+                // 不要把标题当作关键词！保持keys为空数组
+                // 世界书条目可以没有关键词，但有内容
+                
+                // 确保content有值
+                if (!entry.content) {
+                    console.warn('世界书条目缺少内容，跳过:', entry.title);
+                    continue; // 跳过没有内容的条目
                 }
                 
                 worldBookEntries.push(entry);
@@ -481,10 +521,17 @@ window.importWorldBook = async function(file) {
             // 更新显示
             updateWorldBookDisplay();
             
-            showToast(`成功导入 ${entries.length} 个世界书条目`, 'success');
+            const importedCount = entries.filter(item => item.content).length;
+            showToast(`成功导入 ${importedCount} 个世界书条目`, 'success');
+            
+            // 重置文件输入
+            document.getElementById('worldImportFile').value = '';
         } catch (error) {
             showToast('导入失败：文件格式错误', 'error');
             console.error('导入错误:', error);
+            
+            // 重置文件输入
+            document.getElementById('worldImportFile').value = '';
         }
     };
     reader.readAsText(file);
@@ -502,15 +549,21 @@ window.exportWorldBook = function() {
         entries: worldBookEntries,
         // 添加SillyTavern兼容字段
         world_info: worldBookEntries.map(entry => ({
+            uid: parseInt(entry.id.replace(/\D/g, '')) || Date.now(),
             key: entry.keys,
-            entry: entry.content,
-            insertion_order: entry.order,
-            enabled: entry.enabled,
+            keysecondary: [],
+            content: entry.content,
             comment: entry.title,
-            extensions: {
-                position: entry.position,
-                depth: entry.depth
-            }
+            order: entry.order,
+            position: entry.position === 'before' ? 0 : 1,
+            depth: entry.depth,
+            disable: !entry.enabled,
+            selective: true,
+            constant: false,
+            probability: 100,
+            useProbability: true,
+            group: '',
+            displayIndex: worldBookEntries.indexOf(entry)
         }))
     };
     

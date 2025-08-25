@@ -184,6 +184,22 @@
     color: #93c5fd;
 }
 
+/* 无关键词标签 */
+.no-keys-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #e5e7eb;
+    color: #6b7280;
+    border-radius: 12px;
+    font-size: 12px;
+    font-style: italic;
+}
+
+.dark .no-keys-tag {
+    background-color: #374151;
+    color: #9ca3af;
+}
+
 .entry-content {
     color: #4b5563;
     font-size: 13px;

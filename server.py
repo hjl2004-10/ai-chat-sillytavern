@@ -247,8 +247,9 @@ def save_world_entry():
         if not entry.get('id'):
             entry['id'] = f"world_{uuid.uuid4().hex[:8]}"
         
-        # 保存到文件
-        filename = f"{entry['id']}.json"
+        # 使用安全的文件名（去除特殊字符）
+        safe_id = entry['id'].replace('/', '_').replace('\\', '_').replace(':', '_')
+        filename = f"{safe_id}.json"
         filepath = os.path.join('data/worlds', filename)
         
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -279,19 +280,53 @@ def get_world_list():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/world/delete/<entry_id>', methods=['DELETE'])
+@app.route('/api/world/delete/<path:entry_id>', methods=['DELETE'])
 def delete_world_entry(entry_id):
     """删除世界书条目"""
     try:
-        filepath = os.path.join('data/worlds', f"{entry_id}.json")
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            return jsonify({
-                "status": "success",
-                "message": "世界书条目已删除"
-            })
+        # 使用安全的文件名
+        safe_id = entry_id.replace('/', '_').replace('\\', '_').replace(':', '_')
+        
+        # 尝试直接使用ID作为文件名
+        filepath = os.path.join('data/worlds', f"{safe_id}.json")
+        
+        # 如果文件不存在，尝试查找所有文件并匹配ID
+        if not os.path.exists(filepath):
+            found = False
+            if os.path.exists('data/worlds'):
+                for filename in os.listdir('data/worlds'):
+                    if filename.endswith('.json'):
+                        file_path = os.path.join('data/worlds', filename)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                # 检查多种ID格式
+                                data_id = str(data.get('id', ''))
+                                data_uid = str(data.get('uid', ''))
+                                
+                                if (data_id == entry_id or 
+                                    data_uid == entry_id or 
+                                    f"world_{data_uid}" == entry_id or
+                                    data_id == safe_id):
+                                    os.remove(file_path)
+                                    found = True
+                                    break
+                        except:
+                            continue
+            
+            if not found:
+                # 如果还是找不到，返回成功（可能已被删除）
+                return jsonify({
+                    "status": "success",
+                    "message": "世界书条目已删除（或不存在）"
+                })
         else:
-            return jsonify({"error": "条目不存在"}), 404
+            os.remove(filepath)
+        
+        return jsonify({
+            "status": "success",
+            "message": "世界书条目已删除"
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
