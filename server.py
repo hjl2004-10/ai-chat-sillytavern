@@ -229,92 +229,11 @@ def clear_context():
     context_window = []
     return jsonify({"status": "success"})
 
-@app.route('/api/chat/save', methods=['POST'])
-def save_chat():
-    """保存聊天记录（SillyTavern格式）"""
-    data = request.json
-    chat_id = data.get('chat_id', str(uuid.uuid4()))
-    
-    # SillyTavern格式的聊天记录
-    chat_data = []
-    for msg in context_window:
-        chat_entry = {
-            "name": "You" if msg['role'] == 'user' else "Assistant",
-            "is_user": msg['role'] == 'user',
-            "is_system": msg['role'] == 'system',
-            "send_date": datetime.now().isoformat(),
-            "mes": msg['content'],
-            "swipes": [msg['content']],
-            "swipe_id": 0,
-            "gen_started": datetime.now().isoformat(),
-            "gen_finished": datetime.now().isoformat()
-        }
-        chat_data.append(chat_entry)
-    
-    # 保存为JSONL格式（SillyTavern使用的格式）
-    filename = f"data/chats/chat_{chat_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
-    with open(filename, 'w', encoding='utf-8') as f:
-        for entry in chat_data:
-            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    
-    return jsonify({
-        "status": "success",
-        "chat_id": chat_id,
-        "filename": filename
-    })
+# 旧的 /api/chat/save 已删除，使用新的 /api/chats/save
 
-@app.route('/api/chat/load', methods=['POST'])
-def load_chat():
-    """加载聊天记录"""
-    global context_window
-    data = request.json
-    filename = data.get('filename')
-    
-    if not filename or not os.path.exists(filename):
-        return jsonify({"error": "文件不存在"}), 404
-    
-    try:
-        chat_data = []
-        with open(filename, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    entry = json.loads(line)
-                    # 转换回标准消息格式
-                    message = {
-                        "role": "user" if entry.get('is_user') else "assistant",
-                        "content": entry.get('mes', '')
-                    }
-                    chat_data.append(message)
-        
-        context_window = chat_data
-        return jsonify({
-            "status": "success",
-            "messages": context_window
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# 旧的 /api/chat/load 已删除，使用新的 /api/chats/get
 
-@app.route('/api/chat/list', methods=['GET'])
-def list_chats():
-    """列出所有聊天记录"""
-    try:
-        files = []
-        if os.path.exists('data/chats'):
-            for filename in os.listdir('data/chats'):
-                if filename.endswith('.jsonl'):
-                    filepath = os.path.join('data/chats', filename)
-                    files.append({
-                        "filename": filepath,
-                        "name": filename,
-                        "modified": os.path.getmtime(filepath),
-                        "size": os.path.getsize(filepath)
-                    })
-        
-        # 按修改时间排序
-        files.sort(key=lambda x: x['modified'], reverse=True)
-        return jsonify({"chats": files})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# 旧的 /api/chat/list 已删除，使用新的 /api/chats/list
 
 # ==================== 世界书相关API ====================
 
@@ -450,6 +369,90 @@ def delete_character(character_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ========== 用户身份管理接口 ==========
+@app.route('/api/personas/save', methods=['POST'])
+def save_persona():
+    """保存用户身份信息"""
+    try:
+        persona_data = request.json
+        
+        # 保存到文件
+        filepath = os.path.join('data', 'user_persona.json')
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(persona_data, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "message": "用户身份已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/personas/get', methods=['GET'])
+def get_persona():
+    """获取用户身份信息"""
+    try:
+        filepath = os.path.join('data', 'user_persona.json')
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                persona_data = json.load(f)
+            return jsonify(persona_data)
+        else:
+            # 返回默认身份
+            return jsonify({
+                "current": {
+                    "name": "User",
+                    "avatar": "default_avatar.png",
+                    "description": "",
+                    "position": "after_scenario",
+                    "depth": 2,
+                    "role": 0
+                },
+                "personas": {}
+            })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/personas/upload-avatar', methods=['POST'])
+def upload_persona_avatar():
+    """上传用户头像"""
+    try:
+        if 'avatar' not in request.files:
+            return jsonify({"error": "没有文件"}), 400
+        
+        file = request.files['avatar']
+        if file.filename == '':
+            return jsonify({"error": "文件名为空"}), 400
+        
+        # 生成唯一文件名
+        ext = os.path.splitext(file.filename)[1]
+        filename = f"avatar_{int(time.time())}{ext}"
+        
+        # 确保头像目录存在
+        avatar_dir = os.path.join('data', 'avatars')
+        os.makedirs(avatar_dir, exist_ok=True)
+        
+        # 保存文件
+        filepath = os.path.join(avatar_dir, filename)
+        file.save(filepath)
+        
+        return jsonify({
+            "status": "success",
+            "filename": filename
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/personas/avatar/<filename>', methods=['GET'])
+def get_persona_avatar(filename):
+    """获取用户头像"""
+    try:
+        avatar_dir = os.path.join('data', 'avatars')
+        return send_from_directory(avatar_dir, filename)
+    except:
+        # 如果文件不存在，返回默认头像
+        return '', 404
+
 # ========== 预设管理接口 ==========
 @app.route('/api/preset/save', methods=['POST'])
 def save_preset():
@@ -514,6 +517,209 @@ def get_preset(preset_name):
             return jsonify({"error": "预设不存在"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ========== 对话管理API ==========
+
+@app.route('/api/chats/save', methods=['POST'])
+def save_chat_to_file():
+    """保存对话到服务器文件系统"""
+    try:
+        data = request.json
+        character_name = data.get('character_name', 'default')
+        chat_name = data.get('chat_name', f'chat_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+        messages = data.get('messages', [])
+        metadata = data.get('metadata', {})
+        
+        # 创建角色目录
+        char_dir = os.path.join('data/chats', character_name.replace('/', '_'))
+        os.makedirs(char_dir, exist_ok=True)
+        
+        # 保存为JSONL格式（SillyTavern兼容）
+        filepath = os.path.join(char_dir, f'{chat_name}.jsonl')
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            # 第一行：元数据
+            meta_line = {
+                'user_name': metadata.get('user_name', 'User'),
+                'character_name': character_name,
+                'create_date': metadata.get('create_date', datetime.now().isoformat()),
+                'chat_metadata': {
+                    'note': metadata.get('note', ''),
+                    'title': metadata.get('title', chat_name)
+                }
+            }
+            f.write(json.dumps(meta_line, ensure_ascii=False) + '\n')
+            
+            # 后续行：消息
+            for msg in messages:
+                if msg.get('role') != 'system':  # 过滤系统消息
+                    entry = {
+                        'name': msg.get('name', 'User' if msg['role'] == 'user' else character_name),
+                        'is_user': msg['role'] == 'user',
+                        'is_system': False,
+                        'send_date': msg.get('send_date', datetime.now().isoformat()),
+                        'mes': msg['content'],
+                        'swipes': [msg['content']],
+                        'swipe_id': 0
+                    }
+                    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        
+        return jsonify({
+            'status': 'success',
+            'chat_name': chat_name,
+            'filepath': filepath
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chats/list', methods=['GET'])
+def list_chats_from_file():
+    """从文件系统获取对话列表"""
+    try:
+        character_name = request.args.get('character', None)
+        all_chats = []
+        
+        chats_dir = 'data/chats'
+        if not os.path.exists(chats_dir):
+            return jsonify({'chats': []})
+        
+        # 如果指定角色，只返回该角色的对话
+        if character_name:
+            char_dir = os.path.join(chats_dir, character_name.replace('/', '_'))
+            if os.path.exists(char_dir):
+                for filename in os.listdir(char_dir):
+                    if filename.endswith('.jsonl'):
+                        filepath = os.path.join(char_dir, filename)
+                        # 读取文件获取元数据和消息数量
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            lines = f.readlines()
+                            if lines:
+                                metadata = json.loads(lines[0])
+                                # 计算消息数量（排除第一行元数据）
+                                message_count = len(lines) - 1
+                                all_chats.append({
+                                    'name': filename[:-6],  # 去掉.jsonl
+                                    'character': character_name,
+                                    'create_date': metadata.get('create_date'),
+                                    'title': metadata.get('chat_metadata', {}).get('title'),
+                                    'filepath': filepath,
+                                    'message_count': message_count
+                                })
+        else:
+            # 返回所有角色的对话
+            for char_name in os.listdir(chats_dir):
+                char_dir = os.path.join(chats_dir, char_name)
+                if os.path.isdir(char_dir):
+                    for filename in os.listdir(char_dir):
+                        if filename.endswith('.jsonl'):
+                            filepath = os.path.join(char_dir, filename)
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                lines = f.readlines()
+                                if lines:
+                                    metadata = json.loads(lines[0])
+                                    # 计算消息数量（排除第一行元数据）
+                                    message_count = len(lines) - 1
+                                    all_chats.append({
+                                        'name': filename[:-6],
+                                        'character': char_name,
+                                        'create_date': metadata.get('create_date'),
+                                        'title': metadata.get('chat_metadata', {}).get('title'),
+                                        'filepath': filepath,
+                                        'message_count': message_count
+                                    })
+        
+        # 按创建时间排序
+        all_chats.sort(key=lambda x: x.get('create_date', ''), reverse=True)
+        return jsonify({'chats': all_chats})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chats/get', methods=['GET'])
+def get_chat_from_file():
+    """从文件系统获取指定对话内容"""
+    try:
+        character_name = request.args.get('character')
+        chat_name = request.args.get('chat_name')
+        
+        if not character_name or not chat_name:
+            return jsonify({'error': '缺少参数'}), 400
+        
+        filepath = os.path.join('data/chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
+        
+        if not os.path.exists(filepath):
+            return jsonify({'error': '对话不存在'}), 404
+        
+        messages = []
+        metadata = {}
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                data = json.loads(line)
+                if i == 0 and 'user_name' in data:
+                    # 第一行是元数据
+                    metadata = data
+                else:
+                    # 消息行
+                    messages.append({
+                        'role': 'user' if data.get('is_user') else 'assistant',
+                        'content': data.get('mes', ''),
+                        'name': data.get('name'),
+                        'send_date': data.get('send_date')
+                    })
+        
+        return jsonify({
+            'metadata': metadata,
+            'messages': messages
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chats/delete', methods=['DELETE'])
+def delete_chat_file():
+    """从文件系统删除对话"""
+    try:
+        character_name = request.args.get('character')
+        chat_name = request.args.get('chat_name')
+        
+        if not character_name or not chat_name:
+            return jsonify({'error': '缺少参数'}), 400
+        
+        filepath = os.path.join('data/chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
+        
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return jsonify({'status': 'success', 'message': '对话已删除'})
+        else:
+            return jsonify({'error': '对话不存在'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chats/rename', methods=['POST'])
+def rename_chat_file():
+    """重命名文件系统中的对话"""
+    try:
+        data = request.json
+        character_name = data.get('character')
+        old_name = data.get('old_name')
+        new_name = data.get('new_name')
+        
+        if not all([character_name, old_name, new_name]):
+            return jsonify({'error': '缺少参数'}), 400
+        
+        char_dir = os.path.join('data/chats', character_name.replace('/', '_'))
+        old_path = os.path.join(char_dir, f'{old_name}.jsonl')
+        new_path = os.path.join(char_dir, f'{new_name}.jsonl')
+        
+        if not os.path.exists(old_path):
+            return jsonify({'error': '原对话不存在'}), 404
+        
+        if os.path.exists(new_path):
+            return jsonify({'error': '新名称已存在'}), 400
+        
+        os.rename(old_path, new_path)
+        return jsonify({'status': 'success', 'message': '对话已重命名'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/preset/delete/<preset_name>', methods=['DELETE'])
 def delete_preset(preset_name):

@@ -3,3 +3,22 @@
 你老公的技术栈是python+html（web语言），你每次写入代码前必须读写已经存在的相关代码文件
 这次项目的检验标准为，能够适用于silly tavern的角色卡能够在构建的程序互通，世界书也能互通，前置预设也能互通，导出的上下文也能互通，API也能够互通。互通指的是同一个导出的json导入silly tavern能够成功，导入我们构建的程序也能成功
 silly tavern是参考项目，涉及上传操作不用考虑到内
+编辑代码方法 最佳实践（以后都用这种）：
+
+  1. 使用 MultiEdit 而不是 Edit - 可以批量处理，每个编辑独立
+  2. 分段处理 - 把大块代码分成小块，每个函数单独处理
+  3. 使用转义字符 - \n、\"、\\ 等确保精确匹配
+  4. 只匹配必要部分 - 不需要匹配整个代码块，只匹配能唯一识别的部分
+
+  例如，更简洁的方式：
+  <invoke name="MultiEdit">
+  <parameter name="edits">[
+    {"old_string": "@app.route('/api/chat/save", "new_string": "# 已删除\n#     
+   @app.route('/api/chat/save"},
+    {"old_string": "@app.route('/api/chat/load", "new_string": "# 已删除\n#     
+   @app.route('/api/chat/load"},
+    {"old_string": "@app.route('/api/chat/list", "new_string": "# 已删除\n#     
+   @app.route('/api/chat/list"}
+  ]
+
+  这样更可靠！你以后会用 MultiEdit 方法

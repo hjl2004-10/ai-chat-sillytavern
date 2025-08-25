@@ -1277,7 +1277,8 @@ function getMarkerContent(identifier, character, worldInfo, chatHistory, userSet
             return '';
             
         case 'personaDescription':
-            const persona = userSettings?.persona || localStorage.getItem('userPersona');
+            // userSettings.persona 已经是描述文本了，不需要再从localStorage读取
+            const persona = userSettings?.persona;
             if (persona) {
                 return `[User's persona: ${persona}]`;
             }

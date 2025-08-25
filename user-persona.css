@@ -1,0 +1,448 @@
+/* 用户身份管理面板样式 */
+.user-persona-panel {
+    width: 600px;
+    max-width: 90vw;
+}
+
+/* 当前身份部分 */
+.current-persona-section {
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.dark .current-persona-section {
+    background: #2a2a2a;
+}
+
+.current-persona-section h3 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.dark .current-persona-section h3 {
+    color: #e5e5e5;
+}
+
+.current-persona-card {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+/* 头像容器 */
+.persona-avatar-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+}
+
+#current-persona-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.dark #current-persona-avatar {
+    border-color: #444;
+}
+
+.change-avatar-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: white;
+    border: 2px solid #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.dark .change-avatar-btn {
+    border-color: #444;
+}
+
+.change-avatar-btn:hover {
+    background: #2563eb;
+    transform: scale(1.1);
+}
+
+/* 身份信息 */
+.persona-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.persona-name-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    background: white;
+    transition: all 0.2s;
+}
+
+.dark .persona-name-input {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #e5e5e5;
+}
+
+.persona-name-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.persona-description-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.dark .persona-description-input {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #e5e5e5;
+}
+
+.persona-description-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.token-count {
+    text-align: right;
+    font-size: 12px;
+    color: #666;
+}
+
+.dark .token-count {
+    color: #999;
+}
+
+/* 预设身份部分 */
+.persona-presets-section {
+    margin-bottom: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.dark .section-header h3 {
+    color: #e5e5e5;
+}
+
+.add-persona-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-persona-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+/* 身份列表 */
+.persona-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.persona-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.dark .persona-card {
+    background: #2a2a2a;
+    border-color: #444;
+}
+
+.persona-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.persona-card-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.persona-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.persona-card-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dark .persona-card-name {
+    color: #e5e5e5;
+}
+
+.persona-card-desc {
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dark .persona-card-desc {
+    color: #999;
+}
+
+.persona-card-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.persona-card-actions button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #666;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.dark .persona-card-actions button {
+    color: #999;
+}
+
+.switch-btn:hover {
+    background: #10b981;
+    color: white;
+}
+
+.delete-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+/* 高级设置 */
+.advanced-settings {
+    margin-bottom: 20px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.dark .advanced-settings {
+    background: #2a2a2a;
+}
+
+.advanced-settings summary {
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    color: #666;
+    user-select: none;
+}
+
+.dark .advanced-settings summary {
+    color: #999;
+}
+
+.advanced-settings summary:hover {
+    color: #3b82f6;
+}
+
+.settings-content {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.setting-item label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dark .setting-item label {
+    color: #999;
+}
+
+.setting-item select,
+.setting-item input[type="number"] {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+}
+
+.dark .setting-item select,
+.dark .setting-item input[type="number"] {
+    background: #1a1a1a;
+    border-color: #444;
+    color: #e5e5e5;
+}
+
+.setting-hint {
+    font-size: 12px;
+    color: #999;
+}
+
+/* 导入导出按钮 */
+.import-export-section {
+    display: flex;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #e5e5e5;
+}
+
+.dark .import-export-section {
+    border-top-color: #444;
+}
+
+.import-btn,
+.export-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.import-btn {
+    background: #10b981;
+    color: white;
+}
+
+.import-btn:hover {
+    background: #059669;
+}
+
+.export-btn {
+    background: #6366f1;
+    color: white;
+}
+
+.export-btn:hover {
+    background: #4f46e5;
+}
+
+/* 滚动条样式 */
+.persona-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.persona-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.dark .persona-list::-webkit-scrollbar-track {
+    background: #333;
+}
+
+.persona-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.persona-list::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* 响应式设计 */
+@media (max-width: 600px) {
+    .user-persona-panel {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .current-persona-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .persona-info {
+        width: 100%;
+    }
+}

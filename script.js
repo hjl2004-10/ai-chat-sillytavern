@@ -53,6 +53,68 @@ function closeSidebar() {
     }
 }
 
+// 更新角色标题栏
+function updateChatHeader() {
+    const chatHeader = document.querySelector('.chat-header');
+    if (!chatHeader) return;
+    
+    // 检查是否启用角色显示
+    const showHeader = localStorage.getItem('showCharacterHeader') !== 'false'; // 默认显示
+    
+    if (window.currentCharacter && showHeader) {
+        // 有角色选中且启用显示时显示角色信息
+        chatHeader.style.display = 'block';
+        
+        const avatar = chatHeader.querySelector('.chat-header-avatar');
+        const name = chatHeader.querySelector('.chat-header-name');
+        const status = chatHeader.querySelector('.chat-header-status');
+        
+        // 设置头像文字（取名字的第一个字符）
+        avatar.textContent = window.currentCharacter.name.charAt(0).toUpperCase();
+        
+        // 设置名字
+        name.textContent = window.currentCharacter.name;
+        
+        // 设置状态（可以根据角色的描述或性格设置不同的状态文字）
+        if (window.currentCharacter.description) {
+            // 如果有描述，显示描述的前30个字符
+            const desc = window.currentCharacter.description;
+            status.textContent = desc.length > 30 ? desc.substring(0, 30) + '...' : desc;
+        } else {
+            status.textContent = '在线';
+        }
+        
+        // 根据角色名称生成不同的头像颜色
+        const colors = [
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)'
+        ];
+        const colorIndex = window.currentCharacter.name.charCodeAt(0) % colors.length;
+        avatar.style.background = colors[colorIndex];
+    } else {
+        // 没有角色或禁用显示时隐藏标题栏
+        chatHeader.style.display = 'none';
+    }
+}
+
+window.updateChatHeader = updateChatHeader;
+
+// 切换角色标题栏显示
+window.toggleCharacterHeader = function(show) {
+    console.log('切换角色显示:', show);
+    localStorage.setItem('showCharacterHeader', show ? 'true' : 'false');
+    updateChatHeader();
+    
+    // 显示提示
+    if (typeof showToast === 'function') {
+        showToast(`角色显示已${show ? '启用' : '禁用'}`, 'info');
+    }
+};
+
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
     // 获取DOM元素
@@ -125,6 +187,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 加载历史对话列表
     await loadChatHistory();
     
+    // 如果有当前角色，尝试加载其最新对话
+    if (window.currentCharacter) {
+        await loadLatestChatForCharacter(window.currentCharacter.name);
+    }
+    
     // 初始化世界书（如果有的话）
     if (typeof initWorldBook === 'function') {
         initWorldBook();
@@ -142,6 +209,21 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 初始化显示
     updateHistoryDisplay();
+    
+    // 更新角色标题栏
+    updateChatHeader();
+    
+    // 初始化开关状态
+    setTimeout(() => {
+        const showHeader = localStorage.getItem('showCharacterHeader') !== 'false';
+        const toggle = document.getElementById('show-character-header');
+        if (toggle) {
+            toggle.checked = showHeader;
+            console.log('初始化开关状态:', showHeader);
+        } else {
+            console.log('未找到开关元素');
+        }
+    }, 100); // 延迟一下确保 DOM 已加载
 });
 
 // 加载配置
@@ -394,6 +476,30 @@ async function sendMessage() {
     
     // 添加到上下文
     contextMessages.push({ role: 'user', content: message });
+    
+    // 如果是新对话的第一条消息，立即添加到历史列表
+    if (contextMessages.length === 1 || 
+        (contextMessages.length === 2 && contextMessages[0].role === 'assistant')) {
+        // 确保新对话在历史列表中
+        if (!chatHistory.find(chat => chat.chatId === currentChatId || chat.name === currentChatId)) {
+            const charName = window.currentCharacter ? window.currentCharacter.name : 'default';
+            const newChat = {
+                chatId: currentChatId,
+                name: currentChatId,
+                character: charName,
+                title: message.substring(0, 30) + (message.length > 30 ? '...' : ''),
+                preview: message,
+                timestamp: new Date().toISOString(),
+                messageCount: 1
+            };
+            chatHistory.unshift(newChat); // 添加到列表顶部
+            if (chatHistory.length > 20) {
+                chatHistory.pop(); // 限制历史记录数量
+            }
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        }
+    }
+    
     updateHistoryDisplay();
     
     // 构建完整的提示词和消息
@@ -402,9 +508,13 @@ async function sendMessage() {
     // 如果有提示词管理器，使用它来构建消息
     if (typeof buildPromptMessages === 'function') {
         // 准备用户设置
+        let userPersonaData = null;
+        if (window.getCurrentUserPersona) {
+            userPersonaData = window.getCurrentUserPersona();
+        }
         const userSettings = {
-            userName: localStorage.getItem('userName') || 'User',
-            persona: localStorage.getItem('userPersona') || ''
+            userName: userPersonaData?.name || localStorage.getItem('userName') || 'User',
+            persona: userPersonaData?.description || ''
         };
         
         // 获取当前角色信息
@@ -522,6 +632,11 @@ async function sendMessage() {
         // 自动保存聊天
         await autoSaveChat();
         
+        // 确保历史面板更新（特别是第一条消息时）
+        if (contextMessages.length <= 2) { // user message + assistant response
+            updateHistoryDisplay();
+        }
+        
     } catch (error) {
         console.error('发送消息失败:', error);
         loadingDiv.remove();
@@ -567,9 +682,45 @@ function addMessageToChat(role, content, isLoading = false) {
             </div>
         `;
     } else {
+        // 查找这条消息在contextMessages中的正确索引
+        let messageIndex = -1;
+        for (let i = contextMessages.length - 1; i >= 0; i--) {
+            if (contextMessages[i].content === content && contextMessages[i].role === role) {
+                messageIndex = i;
+                break;
+            }
+        }
+        
+        // 如果找不到（比如新消息），使用length-1（假设消息刚被添加）
+        if (messageIndex === -1) {
+            messageIndex = Math.max(0, contextMessages.length - 1);
+        }
+        
         messageInner.innerHTML = `
             <div class="message-avatar">${role === 'user' ? 'U' : 'AI'}</div>
-            <div class="message-content">${escapeHtml(content)}</div>
+            <div class="message-content" data-index="${messageIndex}">${escapeHtml(content)}</div>
+            <div class="message-actions">
+                <button class="message-btn edit-btn" onclick="editMessage(${messageIndex})" title="编辑">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button class="message-btn delete-btn" onclick="deleteMessage(${messageIndex})" title="删除">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                ${role === 'assistant' ? `
+                <button class="message-btn regenerate-btn" onclick="regenerateMessage(${messageIndex})" title="重新生成">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                </button>
+                ` : ''}
+            </div>
         `;
     }
     
@@ -598,23 +749,48 @@ function startNewChat() {
     currentChatId = null;
     currentChatTitle = '新对话';
     
+    // 如果有角色卡被选中，添加角色的初始消息
+    if (window.currentCharacter) {
+        // 添加角色的第一条消息（如果有的话）
+        if (window.currentCharacter.first_mes) {
+            contextMessages.push({
+                role: 'assistant',
+                content: window.currentCharacter.first_mes
+            });
+        }
+        
+        // 注意：系统提示会在发送消息时通过 Prompt Manager 动态构建
+        // 不在这里硬编码任何系统提示
+    }
+    
     // 清空聊天界面
     const messagesContainer = document.querySelector('.messages-container');
     if (messagesContainer) {
         messagesContainer.remove();
     }
     
-    // 确保输入框在正确的位置
-    const inputWrapper = document.querySelector('.chat-input-wrapper');
-    const welcomeSection = document.querySelector('.welcome-section');
+    // 更新角色标题栏
+    updateChatHeader();
     
-    if (welcomeSection && inputWrapper) {
-        // 显示欢迎界面
-        welcomeSection.style.display = 'flex';
+    // 如果有角色的初始消息，显示它
+    if (contextMessages.length > 0) {
+        // 显示角色的初始消息
+        contextMessages.forEach(msg => {
+            addMessageToChat(msg.role, msg.content);
+        });
+    } else {
+        // 没有角色卡时，显示欢迎界面
+        const inputWrapper = document.querySelector('.chat-input-wrapper');
+        const welcomeSection = document.querySelector('.welcome-section');
         
-        // 确保输入框在欢迎界面内
-        if (!welcomeSection.contains(inputWrapper)) {
-            welcomeSection.appendChild(inputWrapper);
+        if (welcomeSection && inputWrapper) {
+            // 显示欢迎界面
+            welcomeSection.style.display = 'flex';
+            
+            // 确保输入框在欢迎界面内
+            if (!welcomeSection.contains(inputWrapper)) {
+                welcomeSection.appendChild(inputWrapper);
+            }
         }
     }
     
@@ -644,16 +820,6 @@ function updateHistoryDisplay() {
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
                     </button>
-                    <button onclick="exportAllChats()" title="导出所有对话">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                            <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
-                            <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
-                            <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
-                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                        </svg>
-                    </button>
                 </div>
             </div>
             <div class="history-list"></div>
@@ -665,34 +831,67 @@ function updateHistoryDisplay() {
     const list = historyPanel.querySelector('.history-list');
     list.innerHTML = '';
     
-    // 添加当前对话（如果有内容）
-    if (contextMessages.length > 0) {
-        const currentDiv = document.createElement('div');
-        currentDiv.className = 'history-item active';
-        currentDiv.innerHTML = `
-            <div class="history-title">📝 ${currentChatTitle}</div>
-            <div class="history-meta">${contextMessages.length} 条消息</div>
-        `;
-        list.appendChild(currentDiv);
+    // 如果当前有对话但不在历史列表中（新对话），临时添加到显示
+    let displayHistory = [...chatHistory];
+    if (currentChatId && contextMessages.length > 0) {
+        const existsInHistory = chatHistory.find(chat => 
+            chat.chatId === currentChatId || chat.name === currentChatId
+        );
+        if (!existsInHistory) {
+            // 创建临时的历史项显示
+            const charName = window.currentCharacter ? window.currentCharacter.name : 'default';
+            const tempChat = {
+                chatId: currentChatId,
+                name: currentChatId,
+                character: charName,
+                title: currentChatTitle || contextMessages[0]?.content?.substring(0, 30) || '新对话',
+                preview: contextMessages[0]?.content || '',
+                timestamp: new Date().toISOString(),
+                messageCount: contextMessages.length,
+                isTemp: true // 标记为临时项
+            };
+            displayHistory.unshift(tempChat);
+        }
     }
     
     // 添加历史对话
-    chatHistory.forEach((chat, index) => {
+    displayHistory.forEach((chat, index) => {
         const historyDiv = document.createElement('div');
-        historyDiv.className = 'history-item';
+        // 检查是否是当前选中的对话 - 更严格的判断
+        let isActive = false;
+        if (contextMessages.length > 0 && currentChatId) {
+            // 优先匹配name（服务器对话），然后匹配chatId（本地对话）
+            if (chat.name && chat.name === currentChatId) {
+                isActive = true;
+            } else if (!chat.name && chat.chatId === currentChatId) {
+                isActive = true;
+            }
+        }
+        historyDiv.className = isActive ? 'history-item active' : 'history-item';
+        // 优先使用服务器返回的message_count，否则尝试使用messages数组长度
+        const messageCount = chat.message_count !== undefined ? chat.message_count : 
+                           (chat.messages ? chat.messages.length : 0);
         historyDiv.innerHTML = `
             <div class="history-content" onclick="loadHistoryChat(${index})">
-                <div class="history-title">${chat.title}</div>
-                <div class="history-meta">${chat.messages.length} 条消息</div>
+                <div class="history-title" id="history-title-${index}" ondblclick="event.stopPropagation(); editChatTitle(${index})">
+                    ${chat.title || chat.name || '未命名对话'}
+                </div>
+                <div class="history-meta">${messageCount} 条消息</div>
             </div>
-            <button class="history-delete-btn" onclick="event.stopPropagation(); deleteHistoryChat(${index})" title="删除对话">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-            </button>
+            <div class="history-actions">
+                <button class="history-edit-btn" onclick="event.stopPropagation(); editChatTitle(${index})" title="编辑标题">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button class="history-delete-btn" onclick="event.stopPropagation(); deleteHistoryChat(${index})" title="删除对话">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
         `;
         list.appendChild(historyDiv);
     });
@@ -717,23 +916,73 @@ window.clearContext = async function() {
 async function autoSaveChat() {
     if (contextMessages.length === 0) return;
     
+    const userName = window.getCurrentUserPersona ? window.getCurrentUserPersona().name : 'User';
+    
+    // 如果当前对话已经有角色名，保持不变；否则使用当前选择的角色
+    let charName = 'default';
+    
+    // 检查当前对话是否已经关联了角色
+    const currentChat = chatHistory.find(chat => 
+        chat.chatId === currentChatId || chat.name === currentChatId
+    );
+    
+    if (currentChat && currentChat.character) {
+        // 使用已关联的角色
+        charName = currentChat.character;
+    } else if (window.currentCharacter) {
+        // 使用当前选择的角色
+        charName = window.currentCharacter.name;
+    }
+    
+    // 确保currentChatId存在
+    if (!currentChatId) {
+        currentChatId = `chat_${Date.now()}`;
+    }
+    
+    // 如果是新对话（不在历史列表中），立即添加到历史列表
+    if (!chatHistory.find(chat => chat.chatId === currentChatId || chat.name === currentChatId)) {
+        const newChat = {
+            chatId: currentChatId,
+            name: currentChatId,
+            character: charName,
+            title: currentChatTitle || '新对话',
+            preview: contextMessages[0]?.content || '',
+            timestamp: new Date().toISOString(),
+            messageCount: contextMessages.length
+        };
+        chatHistory.push(newChat);
+        // 立即更新历史显示
+        updateHistoryDisplay();
+    }
+    
     try {
-        const response = await fetch(`${config.api_base}/chat/save`, {
+        const response = await fetch('/api/chats/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                chat_id: currentChatId || undefined
+                character_name: charName,
+                chat_name: currentChatId,
+                messages: contextMessages,
+                metadata: {
+                    user_name: userName,
+                    title: currentChatTitle || contextMessages[0]?.content?.substring(0, 30) || '新对话',
+                    create_date: new Date().toISOString()
+                }
             })
         });
         
         if (response.ok) {
             const data = await response.json();
-            currentChatId = data.chat_id;
+            if (!currentChatId) {
+                currentChatId = data.chat_name;
+            }
         }
     } catch (error) {
         console.error('自动保存失败:', error);
+        // 降级到localStorage
+        saveChatToHistory();
     }
 }
 
@@ -785,13 +1034,31 @@ window.exportCurrentChat = function() {
         return;
     }
     
+    // 获取用户和角色名称
+    const userName = window.getCurrentUserPersona ? window.getCurrentUserPersona().name : 'User';
+    const charName = window.currentCharacter ? window.currentCharacter.name : 'Assistant';
+    
     // 转换为SillyTavern的JSONL格式
     let jsonlContent = '';
-    contextMessages.forEach((msg, index) => {
+    
+    // 第一行：元数据
+    const metadata = {
+        user_name: userName,
+        character_name: charName,
+        create_date: new Date().toISOString(),
+        chat_metadata: {
+            note: '',
+            title: currentChatTitle
+        }
+    };
+    jsonlContent += JSON.stringify(metadata) + '\n';
+    
+    // 后续行：消息（过滤掉系统消息，因为系统提示不应该在对话历史中）
+    contextMessages.filter(msg => msg.role !== 'system').forEach((msg, index) => {
         const entry = {
-            name: msg.role === 'user' ? 'You' : 'Assistant',
+            name: msg.role === 'user' ? userName : charName,
             is_user: msg.role === 'user',
-            is_system: msg.role === 'system',
+            is_system: false,
             send_date: new Date().toISOString(),
             mes: msg.content,
             swipes: [msg.content],
@@ -814,8 +1081,8 @@ window.exportCurrentChat = function() {
     showToast('对话已导出（SillyTavern格式）', 'success');
 };
 
-// 导出所有对话（批量导出）
-window.exportAllChats = function() {
+// 已删除exportAllChats功能
+/* window.exportAllChats = function() {
     const allChats = [...chatHistory];
     
     // 添加当前对话（如果有）
@@ -865,7 +1132,7 @@ window.exportAllChats = function() {
     });
     
     showToast(`正在导出 ${allChats.length} 个对话`, 'success');
-};
+}; */
 
 // 导入SillyTavern格式的对话
 window.importChat = function(file) {
@@ -874,13 +1141,28 @@ window.importChat = function(file) {
         try {
             const lines = e.target.result.split('\n').filter(line => line.trim());
             const messages = [];
+            let chatMetadata = null;
             
-            lines.forEach(line => {
+            lines.forEach((line, index) => {
                 const entry = JSON.parse(line);
-                messages.push({
-                    role: entry.is_user ? 'user' : 'assistant',
-                    content: entry.mes
-                });
+                
+                // 第一行可能是元数据
+                if (index === 0 && entry.user_name && entry.character_name) {
+                    chatMetadata = entry;
+                    // 如果有对应的角色，尝试选择它
+                    if (entry.character_name && window.characterList) {
+                        const charIndex = window.characterList.findIndex(c => c.name === entry.character_name);
+                        if (charIndex !== -1) {
+                            window.selectCharacter(charIndex);
+                        }
+                    }
+                } else if (entry.mes) {
+                    // 普通消息
+                    messages.push({
+                        role: entry.is_user ? 'user' : 'assistant',
+                        content: entry.mes || entry.content || ''
+                    });
+                }
             });
             
             if (messages.length > 0) {
@@ -922,6 +1204,14 @@ window.importChat = function(file) {
                     addMessageToChat(msg.role, msg.content);
                 });
                 
+                // 立即保存导入的对话到历史
+                saveChatToHistory();
+                
+                // 如果有角色名称，尝试保存到服务器
+                if (chatMetadata && chatMetadata.character_name) {
+                    autoSaveChat();
+                }
+                
                 updateHistoryDisplay();
                 showToast('对话导入成功', 'success');
             }
@@ -943,8 +1233,9 @@ function saveChatToHistory() {
     const chat = {
         title: currentChatTitle,
         chatId: currentChatId || 'chat_' + Date.now(),
-        messages: [...contextMessages],
-        timestamp: new Date().toISOString()
+        messages: [...contextMessages.filter(msg => msg.role !== 'system')], // 过滤系统消息
+        timestamp: new Date().toISOString(),
+        characterName: window.currentCharacter ? window.currentCharacter.name : null // 添加角色名称
     };
     
     if (existingIndex !== -1) {
@@ -962,32 +1253,92 @@ function saveChatToHistory() {
     localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
 }
 
-// 加载历史对话列表
-async function loadChatHistory() {
-    // 从localStorage加载
-    const saved = localStorage.getItem('chatHistory');
-    if (saved) {
-        try {
-            chatHistory = JSON.parse(saved);
-        } catch (e) {
-            chatHistory = [];
-        }
-    }
+// 加载特定角色的最新对话
+async function loadLatestChatForCharacter(characterName) {
+    if (!characterName) return;
     
-    // 也可以从服务器加载
     try {
-        const response = await fetch(`${config.api_base}/chat/list`);
+        // 获取该角色的对话列表
+        const response = await fetch(`/api/chats/list?character=${encodeURIComponent(characterName)}`);
+        
         if (response.ok) {
             const data = await response.json();
-            // 可以合并服务器和本地的数据
+            const chats = data.chats || [];
+            
+            if (chats.length > 0) {
+                // 加载最新的对话
+                const latestChat = chats[0]; // 已按时间排序，第一个是最新的
+                const chatResponse = await fetch(`/api/chats/get?character=${encodeURIComponent(characterName)}&chat_name=${encodeURIComponent(latestChat.name)}`);
+                
+                if (chatResponse.ok) {
+                    const chatData = await chatResponse.json();
+                    
+                    // 恢复对话内容
+                    contextMessages = chatData.messages || [];
+                    currentChatId = latestChat.name;
+                    currentChatTitle = latestChat.title || latestChat.name;
+                    
+                    // 刷新显示
+                    refreshChatDisplay();
+                    updateHistoryDisplay();
+                }
+            }
         }
     } catch (error) {
-        console.error('加载服务器聊天列表失败:', error);
+        console.error('加载最新对话失败:', error);
+    }
+}
+
+// 加载历史对话列表
+async function loadChatHistory() {
+    const charName = window.currentCharacter ? window.currentCharacter.name : null;
+    
+    try {
+        // 从服务器加载对话列表
+        const url = charName ? `/api/chats/list?character=${encodeURIComponent(charName)}` : '/api/chats/list';
+        const response = await fetch(url);
+        
+        if (response.ok) {
+            const data = await response.json();
+            // 清空旧的历史记录，只使用服务器返回的数据
+            chatHistory = data.chats || [];
+            
+            // 去重：基于name或chatId
+            const seen = new Set();
+            chatHistory = chatHistory.filter(chat => {
+                const key = chat.name || chat.chatId;
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+            
+            // 同步到localStorage作为缓存
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+        } else {
+            throw new Error('服务器响应错误');
+        }
+    } catch (error) {
+        console.error('从服务器加载失败，使用本地缓存:', error);
+        // 降级到localStorage
+        const saved = localStorage.getItem('chatHistory');
+        if (saved) {
+            try {
+                chatHistory = JSON.parse(saved);
+                // 如果有角色过滤，只显示该角色的对话
+                if (charName) {
+                    chatHistory = chatHistory.filter(chat => chat.characterName === charName || chat.character === charName);
+                }
+            } catch (e) {
+                chatHistory = [];
+            }
+        }
     }
 }
 
 // 加载历史对话
-function loadHistoryChat(index) {
+async function loadHistoryChat(index) {
     // 保存当前对话
     if (contextMessages.length > 0) {
         saveChatToHistory();
@@ -997,9 +1348,53 @@ function loadHistoryChat(index) {
     const chat = chatHistory[index];
     if (!chat) return;
     
-    contextMessages = [...chat.messages];
-    currentChatId = chat.chatId;
-    currentChatTitle = chat.title;
+    // 切换到对话对应的角色
+    if (chat.character && window.selectCharacterByName) {
+        // 尝试切换到对应角色
+        const switched = await window.selectCharacterByName(chat.character);
+        if (!switched) {
+            showToast(`警告：无法切换到角色 ${chat.character}`, 'warning');
+        }
+    } else if (chat.characterName && window.selectCharacterByName) {
+        // 兼容旧格式
+        const switched = await window.selectCharacterByName(chat.characterName);
+        if (!switched) {
+            showToast(`警告：无法切换到角色 ${chat.characterName}`, 'warning');
+        }
+    }
+    
+    // 如果对话来自服务器（有name和character属性），需要从服务器加载完整内容
+    if (chat.name && chat.character && !chat.messages) {
+        try {
+            showToast('正在加载对话...', 'info');
+            const response = await fetch(`/api/chats/get?character=${encodeURIComponent(chat.character)}&chat_name=${encodeURIComponent(chat.name)}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                // 更新contextMessages为服务器返回的消息
+                contextMessages = data.messages || [];
+                currentChatId = chat.name;
+                currentChatTitle = chat.title || chat.name;
+                
+                // 更新缓存中的对话数据
+                chatHistory[index].messages = contextMessages;
+                chatHistory[index].chatId = currentChatId;
+                
+            } else {
+                throw new Error('加载对话失败');
+            }
+        } catch (error) {
+            console.error('从服务器加载对话失败:', error);
+            showToast('加载对话失败: ' + error.message, 'error');
+            return;
+        }
+    } else {
+        // 从本地缓存加载
+        contextMessages = [...(chat.messages || [])];
+        currentChatId = chat.chatId || chat.name;
+        currentChatTitle = chat.title || chat.name || '未命名对话';
+    }
     
     // 清空现有消息容器
     let messagesContainer = document.querySelector('.messages-container');
@@ -1032,26 +1427,357 @@ function loadHistoryChat(index) {
     // 更新历史显示
     updateHistoryDisplay();
     
-    showToast(`已加载对话: ${chat.title}`, 'success');
+    // 更新角色标题栏
+    updateChatHeader();
+    
+    showToast(`已加载对话: ${currentChatTitle}`, 'success');
 }
 
+// 编辑消息
+window.editMessage = function(index) {
+    if (index < 0 || index >= contextMessages.length) return;
+    
+    const message = contextMessages[index];
+    const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
+    
+    if (!messageContent) return;
+    
+    // 创建编辑框
+    const currentContent = message.content;
+    const textarea = document.createElement('textarea');
+    textarea.className = 'message-edit-textarea';
+    textarea.value = currentContent;
+    textarea.style.width = '100%';
+    textarea.style.minHeight = '100px';
+    
+    // 创建按钮组
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'edit-buttons';
+    buttonGroup.innerHTML = `
+        <button onclick="saveEditedMessage(${index})" class="save-edit-btn">保存</button>
+        <button onclick="cancelEditMessage(${index})" class="cancel-edit-btn">取消</button>
+    `;
+    
+    // 替换内容
+    messageContent.innerHTML = '';
+    messageContent.appendChild(textarea);
+    messageContent.appendChild(buttonGroup);
+    
+    // 聚焦并选中文本
+    textarea.focus();
+    textarea.select();
+};
+
+// 保存编辑的消息
+window.saveEditedMessage = function(index) {
+    const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
+    const textarea = messageContent.querySelector('textarea');
+    
+    if (!textarea) return;
+    
+    const newContent = textarea.value.trim();
+    if (newContent) {
+        // 更新消息
+        contextMessages[index].content = newContent;
+        
+        // 恢复显示
+        messageContent.innerHTML = escapeHtml(newContent);
+        
+        // 自动保存
+        autoSaveChat();
+        showToast('消息已更新', 'success');
+    }
+};
+
+// 取消编辑
+window.cancelEditMessage = function(index) {
+    const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
+    const message = contextMessages[index];
+    
+    // 恢复原内容
+    messageContent.innerHTML = escapeHtml(message.content);
+};
+
+// 删除消息
+window.deleteMessage = function(index) {
+    if (index < 0 || index >= contextMessages.length) return;
+    
+    if (confirm('确定要删除这条消息吗？')) {
+        // 从数组中删除
+        contextMessages.splice(index, 1);
+        
+        // 重新渲染所有消息
+        refreshChatDisplay();
+        
+        // 自动保存
+        autoSaveChat();
+        showToast('消息已删除', 'success');
+    }
+};
+
+// 重新生成消息（仅AI消息）
+window.regenerateMessage = async function(index) {
+    if (index < 0 || index >= contextMessages.length) return;
+    
+    const message = contextMessages[index];
+    if (message.role !== 'assistant') return;
+    
+    // 找到上一条用户消息
+    let lastUserMessageIndex = -1;
+    for (let i = index - 1; i >= 0; i--) {
+        if (contextMessages[i].role === 'user') {
+            lastUserMessageIndex = i;
+            break;
+        }
+    }
+    
+    if (lastUserMessageIndex === -1) return;
+    
+    // 删除当前AI回复及之后的所有消息
+    contextMessages.splice(index);
+    refreshChatDisplay();
+    
+    // 重新发送用户消息以获取新回复
+    const userMessage = contextMessages[lastUserMessageIndex].content;
+    
+    // 临时移除用户消息，让sendMessage重新添加
+    contextMessages.splice(lastUserMessageIndex, 1);
+    refreshChatDisplay();
+    
+    // 重新发送
+    const chatInput = document.querySelector('.chat-input');
+    if (chatInput) {
+        chatInput.value = userMessage;
+        await sendMessage();
+    } else {
+        // 如果找不到输入框，恢复用户消息
+        contextMessages.splice(lastUserMessageIndex, 0, { role: 'user', content: userMessage });
+        refreshChatDisplay();
+        showToast('无法重新生成：输入框未找到', 'error');
+    }
+};
+
+// 刷新聊天显示
+function refreshChatDisplay() {
+    const messagesContainer = document.querySelector('.messages-container');
+    if (!messagesContainer) return;
+    
+    // 清空消息（但不清空容器，因为输入框可能在里面）
+    const allMessages = messagesContainer.querySelectorAll('.message');
+    allMessages.forEach(msg => msg.remove());
+    
+    // 重新添加所有消息
+    contextMessages.forEach((msg, index) => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${msg.role}-message`;
+        
+        const messageInner = document.createElement('div');
+        messageInner.className = 'message-inner';
+        messageInner.innerHTML = `
+            <div class="message-avatar">${msg.role === 'user' ? 'U' : 'AI'}</div>
+            <div class="message-content" data-index="${index}">${escapeHtml(msg.content)}</div>
+            <div class="message-actions">
+                <button class="message-btn edit-btn" onclick="editMessage(${index})" title="编辑">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+                <button class="message-btn delete-btn" onclick="deleteMessage(${index})" title="删除">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+                ${msg.role === 'assistant' ? `
+                <button class="message-btn regenerate-btn" onclick="regenerateMessage(${index})" title="重新生成">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                </button>
+                ` : ''}
+            </div>
+        `;
+        
+        messageDiv.appendChild(messageInner);
+        messagesContainer.appendChild(messageDiv);
+    });
+    
+    // 滚动到底部
+    const lastMessage = messagesContainer.querySelector('.message:last-child');
+    if (lastMessage) {
+        lastMessage.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// 编辑对话标题
+window.editChatTitle = async function(index) {
+    let titleElement, chat, isCurrentChat = false;
+    
+    if (index === 'current') {
+        // 编辑当前对话
+        titleElement = document.getElementById('current-chat-title');
+        isCurrentChat = true;
+    } else {
+        // 编辑历史对话
+        titleElement = document.getElementById(`history-title-${index}`);
+        chat = chatHistory[index];
+        if (!chat) return;
+    }
+    
+    if (!titleElement) return;
+    
+    // 保存原始内容
+    const originalTitle = isCurrentChat ? currentChatTitle : (chat.title || chat.name);
+    const displayTitle = titleElement.textContent.replace('📝 ', '').trim();
+    
+    // 创建输入框
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'chat-title-edit-input';
+    input.value = displayTitle;
+    input.style.width = '100%';
+    
+    // 替换标题元素
+    titleElement.innerHTML = '';
+    titleElement.appendChild(input);
+    
+    // 聚焦并选中
+    input.focus();
+    input.select();
+    
+    // 保存函数
+    const saveTitle = async () => {
+        const newTitle = input.value.trim();
+        
+        if (newTitle && newTitle !== originalTitle) {
+            if (isCurrentChat) {
+                // 更新当前对话标题
+                currentChatTitle = newTitle;
+                
+                // 如果有chatId，同时更新服务器
+                if (currentChatId && window.currentCharacter) {
+                    try {
+                        await fetch('/api/chats/rename', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                character: window.currentCharacter.name,
+                                old_name: currentChatId,
+                                new_name: newTitle
+                            })
+                        });
+                    } catch (error) {
+                        console.error('重命名失败:', error);
+                    }
+                }
+            } else {
+                // 更新历史对话标题
+                chat.title = newTitle;
+                
+                // 更新服务器
+                if (chat.character && chat.name) {
+                    try {
+                        await fetch('/api/chats/rename', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                character: chat.character,
+                                old_name: chat.name,
+                                new_name: newTitle
+                            })
+                        });
+                        chat.name = newTitle; // 更新文件名
+                    } catch (error) {
+                        console.error('重命名失败:', error);
+                    }
+                }
+                
+                // 更新localStorage
+                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            }
+            
+            // 恢复显示
+            titleElement.textContent = isCurrentChat ? `📝 ${newTitle}` : newTitle;
+            showToast('标题已更新', 'success');
+        } else {
+            // 恢复原标题
+            titleElement.textContent = isCurrentChat ? `📝 ${originalTitle}` : originalTitle;
+        }
+    };
+    
+    // 绑定事件
+    input.addEventListener('blur', saveTitle);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur();
+        } else if (e.key === 'Escape') {
+            input.value = originalTitle;
+            input.blur();
+        }
+    });
+};
+
 // 删除历史对话
-window.deleteHistoryChat = function(index) {
+window.deleteHistoryChat = async function(index) {
     const chat = chatHistory[index];
     if (!chat) return;
     
+    const chatTitle = chat.title || chat.name || '未命名对话';
+    
     // 确认删除
-    if (confirm(`确定要删除对话 "${chat.title}" 吗？`)) {
-        // 从历史数组中移除
-        chatHistory.splice(index, 1);
-        
-        // 更新localStorage
-        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-        
-        // 更新显示
-        updateHistoryDisplay();
-        
-        showToast('对话已删除', 'success');
+    if (confirm(`确定要删除对话 "${chatTitle}" 吗？`)) {
+        try {
+            // 如果是服务器上的对话，需要调用API删除
+            if (chat.name && chat.character) {
+                const response = await fetch(`/api/chats/delete?character=${encodeURIComponent(chat.character)}&chat_name=${encodeURIComponent(chat.name)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('服务器删除失败');
+                }
+            }
+            
+            // 从历史数组中移除
+            chatHistory.splice(index, 1);
+            
+            // 更新localStorage
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            
+            // 如果删除的是当前对话，清空当前对话
+            if ((chat.chatId === currentChatId || chat.name === currentChatId)) {
+                contextMessages = [];
+                currentChatId = null;
+                currentChatTitle = '新对话';
+                
+                // 清空界面
+                const messagesContainer = document.querySelector('.messages-container');
+                if (messagesContainer) {
+                    messagesContainer.remove();
+                }
+                
+                // 显示欢迎界面
+                const welcomeSection = document.querySelector('.welcome-section');
+                if (welcomeSection) {
+                    welcomeSection.style.display = 'flex';
+                }
+            }
+            
+            // 更新显示
+            updateHistoryDisplay();
+            
+            showToast('对话已删除', 'success');
+        } catch (error) {
+            console.error('删除失败:', error);
+            showToast('删除失败: ' + error.message, 'error');
+        }
     }
 };
  

@@ -4,7 +4,13 @@
       "Bash(tail:*)",
       "Bash(wc:*)",
       "Bash(cp:*)",
-      "Bash(diff:*)"
+      "Bash(diff:*)",
+      "Read(/A:\\1酒馆/**)",
+      "Read(/A:\\1酒馆/**)",
+      "Read(/A:\\1酒馆\\SillyTavern\\src\\endpoints/**)",
+      "Read(/A:\\1酒馆\\SillyTavern\\public/**)",
+      "Read(/A:\\1酒馆\\SillyTavern\\public/**)",
+      "Read(/A:\\1酒馆\\SillyTavern\\public/**)"
     ],
     "deny": [],
     "ask": []

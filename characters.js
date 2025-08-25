@@ -1,6 +1,7 @@
 // 角色卡管理模块
-let currentCharacter = null;  // 当前选中的角色
-let characterList = [];  // 角色列表
+window.currentCharacter = null;  // 当前选中的角色（全局变量）
+window.characterList = [];  // 角色列表（全局变量）
+let characterList = window.characterList;  // 本地引用
 
 // 显示角色卡面板
 window.showCharacterPanel = function() {
@@ -201,10 +202,19 @@ window.importCharacter = async function(file) {
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
-                const character = JSON.parse(e.target.result);
+                let rawData = JSON.parse(e.target.result);
+                let character;
                 
-                // 验证必要字段
-                if (!character.name) {
+                // 处理SillyTavern spec_v2格式
+                if (rawData.spec === 'chara_card_v2' && rawData.data) {
+                    // spec_v2格式，从 data 字段提取
+                    character = rawData.data;
+                    character.spec = rawData.spec;
+                    character.spec_version = rawData.spec_version;
+                } else if (rawData.name) {
+                    // 直接格式（兼容旧版）
+                    character = rawData;
+                } else {
                     showToast('无效的角色卡格式', 'error');
                     return;
                 }
@@ -313,31 +323,92 @@ async function loadCharacterList() {
     }
 }
 
+// 通过名称选择角色（不触发新对话）
+window.selectCharacterByName = async function(characterName) {
+    if (!characterName) return false;
+    
+    // 确保角色列表已加载 - 始终从服务器加载最新数据
+    try {
+        const response = await fetch('/api/character/list');  // 注意：character没有s
+        if (response.ok) {
+            const data = await response.json();
+            characterList = data.characters || [];
+            window.characterList = characterList;
+            // 保存到本地作为缓存备份
+            localStorage.setItem('characterList', JSON.stringify(characterList));
+        } else {
+            throw new Error('服务器响应错误');
+        }
+    } catch (error) {
+        console.error('从服务器加载角色列表失败:', error);
+        // 只有在服务器失败时才使用本地缓存
+        if (!characterList || characterList.length === 0) {
+            const saved = localStorage.getItem('characterList');
+            if (saved) {
+                characterList = JSON.parse(saved);
+                window.characterList = characterList;
+                console.log('使用本地缓存的角色列表');
+            }
+        }
+    }
+    
+    // 查找角色
+    const index = characterList.findIndex(char => char.name === characterName);
+    if (index === -1) {
+        console.warn(`角色 ${characterName} 未找到`);
+        return false;
+    }
+    
+    // 直接设置当前角色，不触发新对话
+    window.currentCharacter = characterList[index];
+    
+    // 更新界面显示（如果有的话）
+    if (typeof updateCharacterDisplay === 'function') {
+        updateCharacterDisplay();
+    }
+    
+    return true;
+};
+
 // 选择角色
 window.selectCharacter = function(index) {
-    currentCharacter = characterList[index];
+    const newCharacter = characterList[index];
     
-    // 如果有开场白，添加到对话
-    if (currentCharacter.first_mes) {
+    // 如果切换了不同的角色，保存当前对话并开始新对话
+    if (window.currentCharacter && window.currentCharacter.name !== newCharacter.name) {
+        // 保存当前角色的对话
+        if (contextMessages.length > 0) {
+            saveChatToHistory();
+        }
         // 开始新对话
         startNewChat();
+    } else if (!window.currentCharacter) {
+        // 第一次选择角色
+        startNewChat();
+    }
+    
+    // 设置当前角色
+    window.currentCharacter = newCharacter;
+    
+    // 如果有开场白且是新对话，添加开场白
+    if (window.currentCharacter.first_mes && contextMessages.length === 0) {
+        // 添加开场白（不添加系统提示到contextMessages）
+        addMessageToChat('assistant', window.currentCharacter.first_mes);
+        contextMessages.push({ role: 'assistant', content: window.currentCharacter.first_mes });
         
-        // 添加系统提示（角色设定）
-        const systemPrompt = buildCharacterPrompt(currentCharacter);
-        contextMessages.push({ role: 'system', content: systemPrompt });
-        
-        // 添加开场白
-        addMessageToChat('assistant', currentCharacter.first_mes);
-        contextMessages.push({ role: 'assistant', content: currentCharacter.first_mes });
-        
-        currentChatTitle = `与 ${currentCharacter.name} 的对话`;
+        currentChatTitle = `与 ${window.currentCharacter.name} 的对话`;
         updateHistoryDisplay();
     }
     
     // 关闭侧边面板
     closeSidePanel();
     
-    showToast(`已选择角色: ${currentCharacter.name}`, 'success');
+    // 更新角色标题栏
+    if (typeof updateChatHeader === 'function') {
+        updateChatHeader();
+    }
+    
+    showToast(`已选择角色: ${window.currentCharacter.name}`, 'success');
 };
 
 // 构建角色提示词
@@ -478,8 +549,32 @@ window.exportCharacter = function(index) {
     const character = characterList[index];
     if (!character) return;
     
+    // 构建SillyTavern spec_v2兼容格式
+    const exportData = {
+        spec: 'chara_card_v2',
+        spec_version: '2.0',
+        data: {
+            name: character.name,
+            description: character.description || '',
+            personality: character.personality || '',
+            scenario: character.scenario || '',
+            first_mes: character.first_mes || '',
+            mes_example: character.mes_example || '',
+            creator_notes: character.creator_notes || '',
+            system_prompt: character.system_prompt || '',
+            post_history_instructions: character.post_history_instructions || '',
+            alternate_greetings: character.alternate_greetings || [],
+            character_book: character.character_book || null,
+            tags: character.tags || [],
+            creator: character.creator || 'user',
+            character_version: character.character_version || '1.0',
+            extensions: character.extensions || {}
+        },
+        create_date: character.create_date || new Date().toISOString()
+    };
+    
     // 转换为JSON并下载
-    const json = JSON.stringify(character, null, 2);
+    const json = JSON.stringify(exportData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
