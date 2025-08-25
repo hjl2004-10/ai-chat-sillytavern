@@ -294,6 +294,61 @@ window.toggleWorldBook = function(worldBookId, active) {
     }
 };
 
+// 编辑世界书
+window.editWorldBook = function(worldBookId) {
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (!worldBook) return;
+    
+    const modal = createModal('编辑世界书', '');
+    const form = document.createElement('div');
+    form.className = 'world-form';
+    form.innerHTML = `
+        <div class="form-group">
+            <label>世界书名称 *</label>
+            <input type="text" id="edit-wb-name" value="${escapeHtml(worldBook.name)}" placeholder="例如：魔法世界设定">
+        </div>
+        <div class="form-group">
+            <label>描述（可选）</label>
+            <textarea id="edit-wb-desc" rows="3" placeholder="简要描述这个世界书的内容">${escapeHtml(worldBook.description || '')}</textarea>
+        </div>
+        <div class="form-buttons">
+            <button onclick="saveEditedWorldBook('${worldBookId}')">保存</button>
+            <button onclick="this.closest('.modal').remove()">取消</button>
+        </div>
+    `;
+    modal.querySelector('.modal-body').appendChild(form);
+};
+
+// 保存编辑后的世界书
+window.saveEditedWorldBook = function(worldBookId) {
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (!worldBook) return;
+    
+    const name = document.getElementById('edit-wb-name').value.trim();
+    const desc = document.getElementById('edit-wb-desc').value.trim();
+    
+    if (!name) {
+        showToast('请输入世界书名称', 'warning');
+        return;
+    }
+    
+    worldBook.name = name;
+    worldBook.description = desc;
+    saveWorldBooks();
+    
+    document.querySelector('.modal').remove();
+    updateWorldBooksDisplay();
+    
+    // 更新选择器中的名称
+    const selector = document.getElementById('worldBookSelector');
+    if (selector && selector.value === worldBookId) {
+        const option = selector.querySelector(`option[value="${worldBookId}"]`);
+        if (option) option.textContent = name;
+    }
+    
+    showToast('世界书已更新', 'success');
+};
+
 // 删除世界书
 window.deleteWorldBook = function(worldBookId) {
     const worldBook = worldBooks.find(wb => wb.id === worldBookId);
@@ -492,7 +547,7 @@ function updateWorldBookDisplay() {
                     <div class="entry-header">
                         <div class="entry-title">
                             <span class="entry-order">#${entry.order}</span>
-                            <span class="entry-name">${escapeHtml(entry.title || entry.keys[0])}</span>
+                            <span class="entry-name">${escapeHtml(entry.title || (entry.keys && entry.keys[0]) || '未命名')}</span>
                             ${!entry.enabled ? '<span class="entry-disabled-badge">已禁用</span>' : ''}
                         </div>
                         <div class="entry-actions">
@@ -527,6 +582,8 @@ function updateWorldBookDisplay() {
                     <div class="entry-meta">
                         <span>位置: ${entry.position === 'before' ? '前置' : '后置'}</span>
                         <span>深度: ${entry.depth}</span>
+                        ${entry.probability !== undefined && entry.probability < 100 ? 
+                            `<span class="probability-tag">概率: ${entry.probability}%</span>` : ''}
                     </div>
                 </div>
             `;
@@ -572,8 +629,22 @@ window.editWorldEntry = function(index) {
             </div>
             
             <div class="form-group half">
+                <label>触发概率 <span class="form-hint">(%)</span></label>
+                <input type="number" id="edit-world-probability" value="${entry.probability || 100}" min="0" max="100">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group half">
                 <label>扫描深度 <span class="form-hint">（扫描最近N条消息）</span></label>
                 <input type="number" id="edit-world-depth" value="${entry.depth}" min="1" max="100">
+            </div>
+            
+            <div class="form-group half">
+                <label>
+                    <input type="checkbox" id="edit-world-use-probability" ${entry.use_probability !== false ? 'checked' : ''}>
+                    启用概率触发
+                </label>
             </div>
         </div>
         
@@ -630,6 +701,8 @@ window.saveEditedWorldEntry = async function(index) {
     entry.keys = keys.split(',').map(k => k.trim()).filter(k => k);
     entry.content = content;
     entry.order = parseInt(document.getElementById('edit-world-order').value) || 100;
+    entry.probability = parseInt(document.getElementById('edit-world-probability').value) || 100;
+    entry.use_probability = document.getElementById('edit-world-use-probability').checked;
     entry.depth = parseInt(document.getElementById('edit-world-depth').value) || 4;
     entry.position = document.getElementById('edit-world-position').value;
     entry.enabled = document.getElementById('edit-world-enabled').checked;

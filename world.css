@@ -348,6 +348,22 @@
     color: #9ca3af;
 }
 
+/* 概率标签 */
+.probability-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: #fbbf24;
+    color: #78350f;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.dark .probability-tag {
+    background-color: #d97706;
+    color: #fef3c7;
+}
+
 .entry-content {
     color: #4b5563;
     font-size: 13px;
