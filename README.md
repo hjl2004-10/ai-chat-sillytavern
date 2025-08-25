@@ -1,46 +1,154 @@
-# AI 对话系统 - 精简版
+# AI 对话系统 v2.0.0 🚀
 
-一个兼容 SillyTavern 数据格式的轻量级 AI 对话系统，支持 OpenAI 兼容的 API 接口。
+一个完全兼容 SillyTavern 数据格式的智能 AI 对话系统，支持 OpenAI 兼容的 API 接口。
 
-## 功能特点
+## 🌟 最新更新 (v2.0.0)
 
-✅ **已完成的功能**：
-- OpenAI 兼容 API 接口（支持各种第三方中转）
-- 流式和非流式对话输出
-- 上下文管理（侧边栏显示）
-- 聊天记录自动保存（SillyTavern JSONL 格式）
-- 模型选择功能
-- 设置面板（API配置、温度、令牌数等）
+### 新增功能
+- ✨ **角色名称显示**: 在对话框顶部显示当前角色名称，支持开关控制
+- 🔄 **实时历史更新**: 新对话立即显示在历史列表中
+- 🎯 **智能启动脚本**: 自动检测环境并安装依赖
+- 📦 **一键安装程序**: Windows用户可使用install.bat完成所有配置
+- 🔍 **环境诊断工具**: check_env.py可检测并修复环境问题
 
-## 快速开始
+### 改进优化
+- 优化了侧边栏布局，更加紧凑
+- 改进了历史切换时的角色同步
+- 增强了设置持久化功能
 
-### 1. 安装依赖
+## ✅ 核心功能
 
+### 对话功能
+- 🤖 OpenAI 兼容 API 接口（支持各种第三方中转）
+- 📡 流式和非流式对话输出
+- 💬 完整的上下文管理
+- 💾 聊天记录自动保存（SillyTavern JSONL 格式）
+- 🎯 实时历史列表更新
+
+### 角色系统
+- 👤 角色卡导入/导出（兼容 SillyTavern spec_v2 格式）
+- 🎭 角色名称实时显示
+- 🔄 角色切换自动同步
+- 📚 角色收藏和管理
+
+### 世界书功能
+- 📖 世界书条目管理
+- 🔍 关键词触发机制
+- 📊 优先级和顺序控制
+- 💼 批量导入导出
+
+### 预设管理
+- ⚙️ 完整的预设系统（兼容 SillyTavern 格式）
+- 📝 自定义系统提示词
+- 🎨 多种预设模板
+- 💾 预设导入导出
+
+### 用户设置
+- 🎨 用户角色自定义
+- 🖼️ 头像上传和管理
+- ⚡ API 配置管理
+- 🎛️ 参数调节（温度、令牌数等）
+
+## 🚀 快速开始
+
+### 方式一：智能启动（推荐）
+
+#### Windows 用户
 ```bash
-pip install flask flask-cors requests
+# 双击运行
+start.bat
 ```
 
-### 2. 启动后端服务器
-
+#### Linux/Mac 用户
 ```bash
-python server.py
+# 添加执行权限并运行
+chmod +x start.sh
+./start.sh
 ```
 
-服务器将在 http://localhost:5000 启动
+**智能启动脚本会自动：**
+- ✅ 检测 Python 环境
+- ✅ 安装缺失的依赖
+- ✅ 启动后端服务器
+- ✅ 显示访问地址
 
-### 3. 打开前端页面
+### 方式二：一键安装（Windows）
 
-直接在浏览器中打开 `final.html` 文件，或使用 Live Server 等工具。
+```bash
+# 双击运行（需要管理员权限）
+install.bat
+```
 
-### 4. 配置 API
+**安装程序会自动：**
+- 📥 下载并安装 Python（如果未安装）
+- 📦 安装所有项目依赖
+- 🔗 创建桌面快捷方式
+- 🚀 启动应用程序
 
-1. 点击右上角的设置按钮（齿轮图标）
-2. 填入你的 API 信息：
-   - **API地址**: 例如 `https://api.openai.com/v1` 或其他兼容接口
+### 方式三：手动安装
+
+1. **安装 Python 3.8+**
+   - 下载地址：https://www.python.org/downloads/
+   - 安装时勾选 "Add Python to PATH"
+
+2. **安装依赖**
+   ```bash
+   pip install -r requirements.txt
+   # 或使用国内镜像
+   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+   ```
+
+3. **启动服务器**
+   ```bash
+   python server.py
+   ```
+
+4. **访问应用**
+   - 打开浏览器访问：http://localhost:5000
+
+## ⚙️ 配置指南
+
+### API 配置
+
+1. **打开设置面板**
+   - 点击右上角的设置按钮（⚙️ 图标）
+
+2. **填写 API 信息**
+   - **API地址**: 
+     - OpenAI官方: `https://api.openai.com/v1`
+     - 国内中转: `https://api.example.com/v1`
    - **API密钥**: 你的 API Key
-   - **其他参数**: 温度、最大令牌数、是否启用流式输出
+   - **模型选择**: 点击"选择模型"按钮
 
-3. 保存设置后，点击顶部的"选择一个模型"按钮选择可用的模型
+3. **调整参数**
+   - **温度** (0-2): 控制回复的创造性
+   - **最大令牌数**: 控制回复长度
+   - **流式输出**: 实时显示生成内容
+
+### 角色配置
+
+1. **导入角色卡**
+   - 点击侧边栏"角色"按钮
+   - 支持 PNG 图片格式（内嵌数据）
+   - 支持 JSON 格式（spec_v2）
+
+2. **角色显示控制**
+   - 在侧边栏找到"角色名显示"开关
+   - 开启后对话框顶部显示当前角色
+   - 切换历史时自动更新角色
+
+### 环境诊断
+
+如遇到问题，运行诊断工具：
+```bash
+python check_env.py
+```
+
+诊断工具会检查：
+- ✅ Python 版本
+- ✅ 依赖包安装
+- ✅ 项目文件完整性
+- ✅ 端口可用性
 
 ## 数据格式说明
 
@@ -62,55 +170,159 @@ python server.py
 ]
 ```
 
-## 目录结构
+## 📁 项目结构
 
 ```
 A:\1前端计划\
-├── final.html          # 前端界面
-├── script.js           # 前端逻辑
-├── styles.css          # 样式文件
-├── server.py           # Python 后端服务器
-├── data/               # 数据存储目录
-│   ├── chats/          # 聊天记录
-│   ├── characters/     # 角色卡（预留）
-│   ├── worlds/         # 世界书（预留）
-│   ├── presets/        # 预设（预留）
-│   └── config.json     # 配置文件
-└── README.md           # 本文件
+├── 🎯 核心文件
+│   ├── final.html          # 主界面
+│   ├── script.js           # 核心逻辑
+│   ├── styles.css          # 界面样式
+│   └── server.py           # 后端服务
+│
+├── 🧩 功能模块
+│   ├── characters.js       # 角色管理
+│   ├── world.js           # 世界书系统
+│   ├── prompt-manager.js   # 预设管理
+│   ├── user-persona.js     # 用户设置
+│   └── ai-settings.js      # AI参数配置
+│
+├── 🚀 启动脚本
+│   ├── start.bat          # Windows智能启动
+│   ├── start.sh           # Linux/Mac智能启动
+│   ├── install.bat        # Windows一键安装
+│   └── check_env.py       # 环境诊断工具
+│
+├── 📦 配置文件
+│   ├── requirements.txt   # Python依赖
+│   └── CLAUDE.md          # 开发指南
+│
+└── 💾 数据目录
+    └── data/
+        ├── chats/         # 聊天记录 (JSONL)
+        ├── characters/    # 角色卡 (JSON)
+        ├── worlds/        # 世界书 (JSON)
+        ├── presets/       # 预设配置 (JSON)
+        └── config.json    # 全局配置
 ```
 
-## 下一步计划
+## 🎯 发展路线
 
-🚀 **即将添加的功能**：
-- 角色卡系统（导入/导出，与 SillyTavern 兼容）
-- 世界书功能（关键词触发的背景知识）
-- 预设管理（保存和加载不同的 AI 参数配置）
-- 聊天历史管理（加载、删除、导出）
-- 多角色对话支持
+### 已完成 ✅
+- [x] 角色卡系统（完全兼容 SillyTavern）
+- [x] 世界书功能（关键词触发机制）
+- [x] 预设管理系统（导入/导出）
+- [x] 聊天历史管理
+- [x] 角色名称显示控制
+- [x] 智能启动脚本
+- [x] 环境自动配置
 
-## 兼容性说明
+### 开发中 🔄
+- [ ] 多角色群聊模式
+- [ ] 语音输入输出
+- [ ] 插件系统
+- [ ] 主题切换
 
-本系统设计为与 SillyTavern 完全兼容：
-- ✅ 可以导入 SillyTavern 的聊天记录
-- ✅ 使用相同的 JSONL 格式存储
-- 🔄 角色卡格式兼容（开发中）
-- 🔄 世界书格式兼容（开发中）
-- 🔄 预设格式兼容（开发中）
+### 计划中 📋
+- [ ] 移动端适配
+- [ ] 云端同步
+- [ ] 多语言支持
+- [ ] AI 绘图集成
 
-## 注意事项
+## 🔄 SillyTavern 兼容性
 
-1. 确保 Python 环境已安装（推荐 Python 3.8+）
-2. API 密钥请妥善保管，不要泄露
-3. 聊天记录会自动保存在 `data/chats` 目录
-4. 首次使用需要配置 API 信息才能正常对话
+### 完全兼容 ✅
+- ✅ **聊天记录**: JSONL 格式，可双向导入导出
+- ✅ **角色卡**: spec_v2 格式，支持 PNG 和 JSON
+- ✅ **世界书**: 相同的条目结构和触发机制
+- ✅ **预设系统**: 兼容的提示词格式
+- ✅ **API 配置**: 相同的接口规范
 
-## 技术栈
+### 数据互通
+```
+SillyTavern ←→ AI Chat System
+     ↓              ↓
+  [导出文件]    [导出文件]
+     ↓              ↓
+   可互相导入和使用
+```
 
-- **前端**: HTML5 + CSS3 + 原生 JavaScript
-- **后端**: Python Flask
-- **数据存储**: 文件系统（JSON/JSONL）
-- **API**: OpenAI 兼容格式
+## ⚠️ 注意事项
 
-## 开发者信息
+### 系统要求
+- **Python**: 3.8 或更高版本
+- **浏览器**: Chrome/Edge/Firefox 最新版
+- **内存**: 建议 4GB 以上
+- **网络**: 需要访问 API 服务
 
-这是一个精简但功能完整的 AI 对话系统，专注于核心功能的实现。如有问题或建议，欢迎反馈！
+### 安全建议
+- 🔐 API 密钥请妥善保管，不要分享或上传
+- 💾 重要对话请定期备份
+- 🔒 不要在公共网络使用敏感 API
+- 📁 数据文件建议定期备份
+
+### 常见问题
+
+**Q: 服务器启动失败？**
+A: 运行 `python check_env.py` 进行诊断
+
+**Q: 无法连接到 API？**
+A: 检查网络和 API 密钥是否正确
+
+**Q: 角色卡导入失败？**
+A: 确保文件格式为 spec_v2 标准
+
+**Q: 端口 5000 被占用？**
+A: 关闭占用程序或修改 server.py 中的端口
+
+## 🛠️ 技术栈
+
+### 前端技术
+- **框架**: 原生 JavaScript (无依赖)
+- **样式**: CSS3 + Flexbox/Grid
+- **存储**: LocalStorage + IndexedDB
+- **通信**: Fetch API + EventSource
+
+### 后端技术
+- **框架**: Flask 3.0
+- **跨域**: Flask-CORS
+- **请求**: Requests
+- **数据**: JSON/JSONL 文件存储
+
+### 开发工具
+- **版本控制**: Git
+- **包管理**: pip/requirements.txt
+- **诊断工具**: check_env.py
+
+## 👥 贡献指南
+
+### 如何贡献
+1. Fork 本项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+### 开发规范
+- 代码风格遵循项目现有规范
+- 新功能需保持 SillyTavern 兼容性
+- 提交信息使用中文或英文均可
+- 重要更改请更新文档
+
+## 📄 许可证
+
+MIT License - 自由使用和修改
+
+## 🙏 致谢
+
+- SillyTavern 项目提供的数据格式规范
+- OpenAI 提供的 API 接口标准
+- 所有贡献者和用户的支持
+
+---
+
+💖 如果这个项目对你有帮助，请给个 Star！
+
+📧 问题反馈：[创建 Issue](https://github.com/your-repo/issues)
+
+🔗 项目主页：[AI Chat System](https://github.com/your-repo)
