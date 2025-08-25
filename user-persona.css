@@ -429,20 +429,256 @@
     background: #666;
 }
 
-/* 响应式设计 */
-@media (max-width: 600px) {
+/* 响应式设计 - 平板设备 */
+@media (max-width: 1024px) {
+    .user-persona-panel {
+        width: 90%;
+        max-width: 500px;
+    }
+}
+
+/* 响应式设计 - 手机横屏 */
+@media (max-width: 768px) {
     .user-persona-panel {
         width: 100%;
         max-width: 100%;
+    }
+    
+    .current-persona-section {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .current-persona-card {
+        gap: 16px;
+    }
+    
+    .persona-avatar-container {
+        width: 80px;
+        height: 80px;
+    }
+    
+    #current-persona-avatar {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .change-avatar-btn {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .persona-list {
+        max-height: 250px;
+    }
+}
+
+/* 响应式设计 - 手机竖屏 */
+@media (max-width: 480px) {
+    .current-persona-section {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .current-persona-section h3 {
+        font-size: 14px;
+        margin-bottom: 12px;
     }
     
     .current-persona-card {
         flex-direction: column;
         align-items: center;
         text-align: center;
+        gap: 12px;
+    }
+    
+    .persona-avatar-container {
+        width: 70px;
+        height: 70px;
+    }
+    
+    #current-persona-avatar {
+        width: 70px;
+        height: 70px;
+        border-width: 2px;
+    }
+    
+    .change-avatar-btn {
+        width: 24px;
+        height: 24px;
+        border-width: 1px;
     }
     
     .persona-info {
         width: 100%;
+        gap: 10px;
+    }
+    
+    .persona-name-input {
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+    
+    .persona-description-input {
+        padding: 8px 10px;
+        font-size: 13px;
+        min-height: 60px;
+    }
+    
+    .token-count {
+        font-size: 11px;
+    }
+    
+    /* 预设身份部分 */
+    .section-header {
+        margin-bottom: 12px;
+    }
+    
+    .section-header h3 {
+        font-size: 14px;
+    }
+    
+    .add-persona-btn {
+        padding: 6px 10px;
+        font-size: 13px;
+        gap: 4px;
+    }
+    
+    /* 身份列表 */
+    .persona-list {
+        gap: 8px;
+        max-height: 200px;
+    }
+    
+    .persona-card {
+        padding: 10px;
+        gap: 10px;
+        border-radius: 8px;
+    }
+    
+    .persona-card-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .persona-card-name {
+        font-size: 13px;
+    }
+    
+    .persona-card-desc {
+        font-size: 11px;
+    }
+    
+    .persona-card-actions button {
+        width: 24px;
+        height: 24px;
+    }
+    
+    /* 高级设置 */
+    .advanced-settings {
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .advanced-settings summary {
+        font-size: 13px;
+    }
+    
+    .settings-content {
+        margin-top: 12px;
+        gap: 12px;
+    }
+    
+    .setting-item label {
+        font-size: 12px;
+    }
+    
+    .setting-item select,
+    .setting-item input[type="number"] {
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+    
+    .setting-hint {
+        font-size: 11px;
+    }
+    
+    /* 导入导出按钮 */
+    .import-export-section {
+        gap: 8px;
+        padding-top: 12px;
+        flex-direction: column;
+    }
+    
+    .import-btn,
+    .export-btn {
+        padding: 8px;
+        font-size: 13px;
+        gap: 6px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    .current-persona-section {
+        padding: 10px;
+    }
+    
+    .persona-avatar-container {
+        width: 60px;
+        height: 60px;
+    }
+    
+    #current-persona-avatar {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .current-persona-section h3,
+    .section-header h3 {
+        font-size: 13px;
+    }
+    
+    .persona-name-input {
+        font-size: 13px;
+        padding: 6px 8px;
+    }
+    
+    .persona-description-input {
+        font-size: 12px;
+        padding: 6px 8px;
+        min-height: 50px;
+    }
+    
+    .add-persona-btn {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+    
+    .persona-card {
+        padding: 8px;
+    }
+    
+    .persona-card-avatar {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .persona-card-name {
+        font-size: 12px;
+    }
+    
+    .persona-card-desc {
+        font-size: 10px;
+    }
+    
+    .advanced-settings {
+        padding: 10px;
+    }
+    
+    .import-btn,
+    .export-btn {
+        padding: 6px;
+        font-size: 12px;
     }
 }

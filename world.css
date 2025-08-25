@@ -521,3 +521,218 @@
 .dark .world-form .form-buttons button:last-child:hover {
     background: #374151;
 }
+
+/* 响应式设计 - 平板设备 */
+@media (max-width: 1024px) {
+    .world-panel {
+        max-width: 90%;
+    }
+}
+
+/* 响应式设计 - 手机横屏 */
+@media (max-width: 768px) {
+    .world-panel {
+        padding: 12px;
+    }
+    
+    .world-selector {
+        flex-direction: column;
+        padding: 10px;
+    }
+    
+    .world-btn-small {
+        width: 100%;
+    }
+    
+    .world-toolbar {
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+    }
+    
+    .world-btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .world-list {
+        max-height: 400px;
+    }
+}
+
+/* 响应式设计 - 手机竖屏 */
+@media (max-width: 480px) {
+    .world-panel {
+        padding: 8px;
+        max-width: 100%;
+    }
+    
+    .world-selector {
+        gap: 6px;
+        margin-bottom: 12px;
+        padding: 8px;
+    }
+    
+    .world-select {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .world-books-list {
+        max-height: 150px;
+        padding: 6px;
+    }
+    
+    .world-book-item {
+        padding: 10px;
+        margin-bottom: 6px;
+    }
+    
+    .wb-name {
+        font-size: 13px;
+    }
+    
+    .wb-meta {
+        font-size: 11px;
+    }
+    
+    .wb-description {
+        font-size: 12px;
+    }
+    
+    .world-toolbar {
+        gap: 6px;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+    }
+    
+    .world-btn {
+        min-width: 100%;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .world-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .world-list {
+        gap: 8px;
+        max-height: 350px;
+    }
+    
+    .world-entry {
+        padding: 10px;
+    }
+    
+    .entry-title {
+        font-size: 13px;
+    }
+    
+    .entry-order,
+    .entry-disabled-badge {
+        font-size: 10px;
+        padding: 1px 4px;
+    }
+    
+    .key-tag {
+        font-size: 11px;
+        padding: 1px 6px;
+    }
+    
+    .no-keys-tag {
+        font-size: 11px;
+        padding: 1px 6px;
+    }
+    
+    .probability-tag {
+        font-size: 10px;
+        padding: 1px 4px;
+    }
+    
+    .entry-content {
+        font-size: 12px;
+        padding: 6px;
+    }
+    
+    .entry-meta {
+        font-size: 10px;
+        gap: 12px;
+    }
+    
+    /* 表单调整 */
+    .world-form {
+        max-width: 100%;
+    }
+    
+    .world-form .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .world-form .form-group.half {
+        width: 100%;
+    }
+    
+    .world-form label {
+        font-size: 13px;
+    }
+    
+    .form-hint {
+        font-size: 11px;
+    }
+    
+    .world-form input[type="text"],
+    .world-form input[type="number"],
+    .world-form textarea,
+    .world-form select {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .world-form .form-buttons {
+        margin-top: 20px;
+        padding-top: 12px;
+        gap: 8px;
+    }
+    
+    .world-form .form-buttons button {
+        padding: 6px 16px;
+        font-size: 13px;
+        flex: 1;
+    }
+    
+    .no-entries {
+        padding: 30px;
+        font-size: 13px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    .world-entry {
+        padding: 8px;
+    }
+    
+    .entry-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    
+    .entry-actions {
+        align-self: flex-end;
+    }
+    
+    .entry-keys {
+        gap: 4px;
+    }
+    
+    .world-form .form-buttons button {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}

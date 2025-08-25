@@ -6,9 +6,81 @@ import time
 from datetime import datetime
 import os
 import uuid
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
+
+# ========== 日志配置 ==========
+# 确保日志目录存在
+os.makedirs("logs", exist_ok=True)
+
+# 设置日志格式
+log_formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# 创建文件处理器（按大小轮转）
+file_handler = RotatingFileHandler(
+    'logs/ai_chat.log',
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5,
+    encoding='utf-8'
+)
+file_handler.setFormatter(log_formatter)
+file_handler.setLevel(logging.INFO)
+
+# 创建控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+
+# 配置应用日志
+app.logger.setLevel(logging.INFO)
+app.logger.addHandler(file_handler)
+app.logger.addHandler(console_handler)
+
+# 创建专门的AI请求日志器
+ai_logger = logging.getLogger('AI_REQUESTS')
+ai_logger.setLevel(logging.INFO)
+ai_logger.addHandler(file_handler)
+ai_logger.addHandler(console_handler)
+
+def log_ai_request(endpoint, request_data, response_data=None, error=None):
+    """记录AI请求和响应的完整信息"""
+    log_entry = {
+        'timestamp': datetime.now().isoformat(),
+        'endpoint': endpoint,
+        'request': request_data,
+        'response': response_data,
+        'error': str(error) if error else None
+    }
+    
+    # 格式化日志输出
+    ai_logger.info("="*80)
+    ai_logger.info(f"AI请求 - 端点: {endpoint}")
+    ai_logger.info(f"时间: {log_entry['timestamp']}")
+    ai_logger.info("-"*40)
+    ai_logger.info("请求体:")
+    ai_logger.info(json.dumps(request_data, ensure_ascii=False, indent=2))
+    
+    if response_data:
+        ai_logger.info("-"*40)
+        ai_logger.info("响应体:")
+        # 如果响应太长，可以截断
+        response_str = json.dumps(response_data, ensure_ascii=False, indent=2)
+        if len(response_str) > 5000:  # 如果响应超过5000字符
+            ai_logger.info(response_str[:5000] + "\n... [响应已截断]")
+        else:
+            ai_logger.info(response_str)
+    
+    if error:
+        ai_logger.error("-"*40)
+        ai_logger.error(f"错误: {error}")
+    
+    ai_logger.info("="*80 + "\n")
 
 # 配置存储
 config = {
@@ -85,6 +157,9 @@ def get_models():
     if not config.get('api_url') or not config.get('api_key'):
         return jsonify({"error": "API未配置"}), 400
     
+    endpoint = f"{config['api_url']}/models"
+    request_info = {"endpoint": endpoint, "method": "GET"}
+    
     try:
         # OpenAI兼容格式
         headers = {
@@ -94,13 +169,16 @@ def get_models():
         
         # 尝试获取模型列表
         response = requests.get(
-            f"{config['api_url']}/models",
+            endpoint,
             headers=headers,
             timeout=10
         )
         
         if response.status_code == 200:
             data = response.json()
+            # 记录成功响应
+            log_ai_request(endpoint, request_info, data)
+            
             # 提取模型列表
             if 'data' in data:
                 models = [model['id'] for model in data['data']]
@@ -108,8 +186,11 @@ def get_models():
                 models = []
             return jsonify({"models": models})
         else:
+            error_msg = f"Status: {response.status_code}, Body: {response.text}"
+            log_ai_request(endpoint, request_info, error=error_msg)
             return jsonify({"models": [], "error": "无法获取模型列表"})
     except Exception as e:
+        log_ai_request(endpoint, request_info, error=e)
         return jsonify({"models": [], "error": str(e)})
 
 @app.route('/api/chat/completions', methods=['POST'])
@@ -132,6 +213,8 @@ def chat_completions():
         "stream": data.get('stream', config.get('streaming', True))
     }
     
+    # 不在这里记录请求，改为在实际响应时记录，避免重复
+    
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
         "Content-Type": "application/json"
@@ -140,32 +223,49 @@ def chat_completions():
     try:
         if request_data['stream']:
             # 流式响应
+            accumulated_content = []  # 累积响应内容用于日志
+            
             def generate():
-                response = requests.post(
-                    f"{config['api_url']}/chat/completions",
-                    headers=headers,
-                    json=request_data,
-                    stream=True,
-                    timeout=60
-                )
-                
-                for line in response.iter_lines():
-                    if line:
-                        line_str = line.decode('utf-8')
-                        if line_str.startswith('data: '):
-                            yield line_str + '\n\n'
-                            
-                            # 解析并保存到上下文
-                            if line_str != 'data: [DONE]':
-                                try:
-                                    chunk_data = json.loads(line_str[6:])
-                                    if 'choices' in chunk_data and chunk_data['choices']:
-                                        delta = chunk_data['choices'][0].get('delta', {})
-                                        if 'content' in delta:
-                                            # 这里可以累积完整的响应
-                                            pass
-                                except:
-                                    pass
+                try:
+                    response = requests.post(
+                        f"{config['api_url']}/chat/completions",
+                        headers=headers,
+                        json=request_data,
+                        stream=True,
+                        timeout=60
+                    )
+                    
+                    for line in response.iter_lines():
+                        if line:
+                            line_str = line.decode('utf-8')
+                            if line_str.startswith('data: '):
+                                yield line_str + '\n\n'
+                                
+                                # 解析并累积响应内容
+                                if line_str != 'data: [DONE]':
+                                    try:
+                                        chunk_data = json.loads(line_str[6:])
+                                        if 'choices' in chunk_data and chunk_data['choices']:
+                                            delta = chunk_data['choices'][0].get('delta', {})
+                                            if 'content' in delta:
+                                                accumulated_content.append(delta['content'])
+                                    except:
+                                        pass
+                    
+                    # 流式响应完成后记录
+                    complete_response = {
+                        "choices": [{
+                            "message": {
+                                "content": "".join(accumulated_content)
+                            }
+                        }],
+                        "stream": True
+                    }
+                    log_ai_request(f"{config['api_url']}/chat/completions", request_data, complete_response)
+                    
+                except Exception as e:
+                    log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=e)
+                    raise
             
             return Response(
                 stream_with_context(generate()),
@@ -183,6 +283,9 @@ def chat_completions():
             if response.status_code == 200:
                 result = response.json()
                 
+                # 记录成功的响应
+                log_ai_request(f"{config['api_url']}/chat/completions", request_data, result)
+                
                 # 添加响应到上下文窗口
                 if 'choices' in result and result['choices']:
                     assistant_message = {
@@ -193,9 +296,14 @@ def chat_completions():
                 
                 return jsonify(result)
             else:
+                # 记录错误响应
+                error_msg = f"Status: {response.status_code}, Body: {response.text}"
+                log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=error_msg)
                 return jsonify({"error": response.text}), response.status_code
                 
     except Exception as e:
+        # 记录异常
+        log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=e)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/context', methods=['GET'])
@@ -829,5 +937,19 @@ if os.path.exists('data/config.json'):
         config.update(json.load(f))
 
 if __name__ == '__main__':
-    print("服务器启动在 http://localhost:5000")
-    app.run(debug=True, port=5000)
+    print("服务器启动在 http://0.0.0.0:5000")
+    print("可以通过以下地址访问：")
+    print("- http://localhost:5000")
+    print("- http://你的IP地址:5000")
+    print("日志文件位置: logs/ai_chat.log")
+    # host='0.0.0.0' 允许外部访问
+    app.run(host='0.0.0.0', debug=True, port=5000)
+
+# ========== 重要提醒 ==========
+# 添加新的AI相关接口时，请务必使用 log_ai_request() 函数记录请求和响应
+# 示例：
+# log_ai_request(endpoint_url, request_data, response_data, error)
+# 
+# 这将帮助调试和监控AI服务的使用情况
+# 日志文件位置：logs/ai_chat.log
+# ============================

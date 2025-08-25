@@ -523,12 +523,16 @@ async function sendMessage() {
         // 获取世界书信息
         let worldInfo = null;
         if (typeof checkWorldBookTriggers === 'function') {
+            console.log('[世界书] 检查触发条件...');
+            console.log('[世界书] 当前激活的世界书:', activeWorldBooks);
             const triggered = checkWorldBookTriggers(contextMessages);
+            console.log('[世界书] 触发的条目:', triggered);
             if (triggered.length > 0) {
                 worldInfo = {
                     before: triggered.filter(t => t.position === 'before').map(t => t.content).join('\n\n'),
                     after: triggered.filter(t => t.position === 'after').map(t => t.content).join('\n\n')
                 };
+                console.log('[世界书] 将注入的内容:', worldInfo);
             }
         }
         

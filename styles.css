@@ -642,10 +642,27 @@ body.dark {
     color: #9ca3af;
 }
 
-/* 响应式 */
+/* 响应式 - 平板设备 */
+@media (max-width: 1024px) {
+    /* 缩小最大宽度 */
+    .message-inner {
+        max-width: 90%;
+    }
+    
+    .chat-input-wrapper {
+        max-width: 90%;
+    }
+}
+
+/* 响应式 - 手机横屏 */
 @media (max-width: 768px) {
     .sidebar {
         z-index: 100;
+        width: 240px;
+    }
+    
+    .sidebar.hidden {
+        transform: translateX(-240px);
     }
     
     .main-content {
@@ -654,6 +671,261 @@ body.dark {
     
     .menu-toggle {
         display: block !important;
+    }
+    
+    /* 调整顶部导航 */
+    .top-nav {
+        padding: 10px 15px;
+    }
+    
+    /* 调整消息区域 */
+    .message-inner {
+        padding: 0 16px;
+        gap: 16px;
+    }
+    
+    /* 调整输入框 */
+    .chat-input-wrapper {
+        padding: 15px;
+        max-width: 100%;
+    }
+    
+    .chat-input-container {
+        border-radius: 20px;
+    }
+    
+    .chat-input {
+        padding: 14px 16px;
+        font-size: 14px;
+    }
+    
+    /* 调整建议卡片 */
+    .suggestions {
+        padding: 0 15px;
+    }
+    
+    .suggestion-item {
+        padding: 10px 14px;
+    }
+}
+
+/* 响应式 - 手机竖屏 */
+@media (max-width: 480px) {
+    /* 侧边栏全屏 */
+    .sidebar {
+        width: 100%;
+    }
+    
+    .sidebar.hidden {
+        transform: translateX(-100%);
+    }
+    
+    /* 优化字体大小 */
+    body {
+        font-size: 14px;
+    }
+    
+    /* 顶部导航调整 */
+    .model-selector {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+    
+    .top-nav-actions {
+        gap: 4px;
+    }
+    
+    .icon-button {
+        padding: 6px;
+    }
+    
+    .icon-button svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    /* 聊天头部调整 */
+    .chat-header-content {
+        gap: 10px;
+    }
+    
+    .chat-header-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    .chat-header-name {
+        font-size: 15px;
+    }
+    
+    /* 消息样式调整 */
+    .message {
+        padding: 16px 0;
+    }
+    
+    .message-inner {
+        padding: 0 12px;
+        gap: 12px;
+    }
+    
+    .message-avatar {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+    }
+    
+    .message-content {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    /* 消息操作按钮调整 */
+    .message-actions {
+        gap: 3px;
+    }
+    
+    .message-btn {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .message-btn svg {
+        width: 12px;
+        height: 12px;
+    }
+    
+    /* 输入区域调整 */
+    .chat-input-wrapper {
+        padding: 12px;
+    }
+    
+    .chat-input-container {
+        border-radius: 18px;
+    }
+    
+    .chat-input {
+        padding: 12px 14px;
+        font-size: 14px;
+        min-height: 48px;
+    }
+    
+    .chat-input-actions {
+        padding: 6px 10px;
+    }
+    
+    .input-tool-button {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+    
+    .input-tool-button svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .voice-button,
+    .send-button {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .voice-button svg,
+    .send-button svg {
+        width: 16px;
+        height: 16px;
+    }
+    
+    /* 欢迎界面调整 */
+    .welcome-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+    
+    /* 建议卡片调整 */
+    .suggestions {
+        margin-top: 30px;
+    }
+    
+    .suggestion-title {
+        font-size: 13px;
+    }
+    
+    .suggestion-desc {
+        font-size: 11px;
+    }
+    
+    /* 模态框调整 */
+    .modal-content {
+        width: 95%;
+        border-radius: 12px;
+    }
+    
+    .modal-header {
+        padding: 16px;
+    }
+    
+    .modal-header h3 {
+        font-size: 16px;
+    }
+    
+    .modal-body {
+        padding: 16px;
+        max-height: 70vh;
+    }
+    
+    /* 历史面板调整 */
+    .history-panel {
+        padding: 12px;
+    }
+    
+    .history-item {
+        padding: 8px;
+    }
+    
+    .history-title {
+        font-size: 12px;
+    }
+    
+    .history-meta {
+        font-size: 10px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    /* 进一步减小内边距 */
+    .message-inner {
+        padding: 0 10px;
+    }
+    
+    .chat-input-wrapper {
+        padding: 10px;
+    }
+    
+    .chat-input {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    /* 隐藏次要按钮文字，只显示图标 */
+    .input-tool-button span {
+        display: none;
+    }
+    
+    .input-tool-button {
+        padding: 6px;
+    }
+    
+    /* 调整侧边栏 */
+    .sidebar-nav-item {
+        font-size: 13px;
+        padding: 8px 10px;
+    }
+    
+    .sidebar-nav-item svg {
+        width: 16px;
+        height: 16px;
     }
 }
 

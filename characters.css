@@ -125,11 +125,155 @@
     background: #6b7280;
 }
 
-/* 响应式设计 */
+/* 响应式设计 - 平板设备 */
+@media (max-width: 1024px) {
+    .side-panel {
+        width: 500px;
+        right: -500px;
+    }
+}
+
+/* 响应式设计 - 手机横屏 */
 @media (max-width: 768px) {
+    .side-panel {
+        width: 90%;
+        right: -90%;
+    }
+    
+    .side-panel-header {
+        padding: 20px;
+    }
+    
+    .side-panel-content {
+        padding: 20px;
+    }
+    
+    .character-list {
+        max-height: 350px;
+    }
+}
+
+/* 响应式设计 - 手机竖屏 */
+@media (max-width: 480px) {
     .side-panel {
         width: 100%;
         right: -100%;
+    }
+    
+    .side-panel-header {
+        padding: 16px;
+    }
+    
+    .side-panel-header h2 {
+        font-size: 18px;
+    }
+    
+    .side-panel-close {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .side-panel-content {
+        padding: 16px;
+    }
+    
+    .character-panel {
+        padding: 12px;
+    }
+    
+    .character-toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+    }
+    
+    .character-btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .character-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .character-list {
+        gap: 8px;
+        max-height: 300px;
+    }
+    
+    .character-item {
+        padding: 10px;
+        gap: 10px;
+    }
+    
+    .character-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+    
+    .character-name {
+        font-size: 13px;
+    }
+    
+    .character-desc {
+        font-size: 11px;
+    }
+    
+    .character-actions button {
+        padding: 4px;
+    }
+    
+    /* 表单调整 */
+    .character-form input[type="text"],
+    .character-form textarea {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .character-form label {
+        font-size: 13px;
+    }
+    
+    .character-form .form-buttons {
+        margin-top: 20px;
+        padding-top: 12px;
+    }
+    
+    .character-form .form-buttons button {
+        padding: 6px 16px;
+        font-size: 13px;
+    }
+    
+    /* 高级设置调整 */
+    .advanced-settings summary {
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+    
+    .advanced-content {
+        padding: 14px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    .character-btn {
+        min-width: 100%;
+    }
+    
+    .character-item {
+        padding: 8px;
+    }
+    
+    .character-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
     }
 }
 

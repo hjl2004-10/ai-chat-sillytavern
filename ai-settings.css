@@ -508,17 +508,251 @@
     background: #374151;
 }
 
-/* 响应式设计 */
+/* 响应式设计 - 平板设备 */
+@media (max-width: 1024px) {
+    .ai-settings-panel {
+        width: 90%;
+        max-width: 600px;
+    }
+}
+
+/* 响应式设计 - 手机横屏 */
 @media (max-width: 768px) {
     .ai-settings-panel {
         width: 100%;
     }
     
+    .preset-selector-section {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
     .settings-section {
-        padding: 15px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .section-header h3,
+    .settings-section h3 {
+        font-size: 15px;
     }
     
     .preset-actions {
         flex-wrap: wrap;
+    }
+    
+    .preset-btn {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .bias-entries {
+        max-height: 250px;
+    }
+}
+
+/* 响应式设计 - 手机竖屏 */
+@media (max-width: 480px) {
+    .preset-selector-section {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .settings-section {
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .section-header h3,
+    .settings-section h3,
+    .advanced-section summary {
+        font-size: 14px;
+        margin-bottom: 15px;
+    }
+    
+    .preset-select {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    
+    .preset-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .setting-item {
+        margin-bottom: 16px;
+    }
+    
+    .setting-label {
+        font-size: 13px;
+    }
+    
+    .setting-value {
+        font-size: 13px;
+        min-width: 40px;
+    }
+    
+    .setting-hint {
+        font-size: 11px;
+    }
+    
+    /* 滑块调整 */
+    .setting-item input[type="range"] {
+        height: 5px;
+    }
+    
+    .setting-item input[type="range"]::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .setting-item input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+    }
+    
+    /* 输入框调整 */
+    .setting-item input[type="number"] {
+        padding: 5px 8px;
+        font-size: 13px;
+        width: 80px;
+    }
+    
+    .text-input,
+    .setting-item input[type="text"],
+    .setting-item input[type="password"] {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    
+    /* 偏置选择器调整 */
+    .bias-selector {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .bias-selector select {
+        width: 100%;
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .edit-btn,
+    .manage-btn {
+        width: 100%;
+        padding: 6px 14px;
+        font-size: 13px;
+    }
+    
+    /* 提示词列表调整 */
+    .prompt-item {
+        padding: 10px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .prompt-item span {
+        font-size: 13px;
+    }
+    
+    /* 偏置编辑器调整 */
+    .bias-form {
+        padding: 16px;
+    }
+    
+    .bias-info {
+        padding: 12px;
+    }
+    
+    .bias-info p {
+        font-size: 13px;
+    }
+    
+    .bias-entries {
+        max-height: 200px;
+    }
+    
+    .bias-entry {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .token-input,
+    .bias-value {
+        width: 100%;
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .remove-btn {
+        width: 100%;
+        height: 30px;
+        font-size: 16px;
+    }
+    
+    .add-bias-btn {
+        padding: 8px;
+        font-size: 13px;
+    }
+    
+    /* 设置操作按钮调整 */
+    .settings-actions {
+        padding: 16px;
+        gap: 8px;
+    }
+    
+    .save-btn,
+    .reset-btn {
+        padding: 10px 20px;
+        font-size: 13px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    .preset-selector-section,
+    .settings-section {
+        padding: 10px;
+    }
+    
+    .section-header h3,
+    .settings-section h3,
+    .advanced-section summary {
+        font-size: 13px;
+    }
+    
+    .setting-item {
+        margin-bottom: 14px;
+    }
+    
+    .setting-label {
+        font-size: 12px;
+    }
+    
+    .setting-value {
+        font-size: 12px;
+    }
+    
+    .setting-hint {
+        font-size: 10px;
+    }
+    
+    .settings-actions {
+        padding: 12px;
+        flex-direction: column;
+    }
+    
+    .save-btn,
+    .reset-btn {
+        width: 100%;
+        padding: 8px 16px;
     }
 }

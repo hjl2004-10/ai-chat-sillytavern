@@ -1212,10 +1212,19 @@ window.checkWorldBookTriggers = function(messages) {
         }
         
         // 检查关键词
-        const hasMatch = entry.keys && entry.keys.length > 0 && entry.keys.some(key => {
-            const keyLower = key.toLowerCase();
-            return textToScan.includes(keyLower);
-        });
+        // 如果keys为空数组，表示必定触发（constant entry）
+        let hasMatch = false;
+        
+        if (!entry.keys || entry.keys.length === 0) {
+            // 空关键字或未定义关键字 = 必定触发
+            hasMatch = true;
+        } else {
+            // 有关键字时，检查是否匹配
+            hasMatch = entry.keys.some(key => {
+                const keyLower = key.toLowerCase();
+                return textToScan.includes(keyLower);
+            });
+        }
         
         if (hasMatch) {
             triggered.push({
@@ -1274,3 +1283,25 @@ window.initWorldBook = function() {
         }
     }
 };
+// 手动激活世界书（供调试使用）
+window.activateWorldBook = function(worldBookId) {
+    const worldBook = worldBooks.find(wb => wb.id === worldBookId);
+    if (!worldBook) {
+        console.error('世界书不存在:', worldBookId);
+        return false;
+    }
+    
+    worldBook.active = true;
+    if (!activeWorldBooks.includes(worldBookId)) {
+        activeWorldBooks.push(worldBookId);
+    }
+    
+    saveActiveWorldBooks();
+    updateWorldBooksDisplay();
+    console.log(`世界书"${worldBook.name}"(${worldBookId})已激活`);
+    console.log('当前激活的世界书:', activeWorldBooks);
+    return true;
+};
+
+// 初始化世界书系统
+initWorldBookSystem();

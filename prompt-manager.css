@@ -597,21 +597,299 @@ input:checked + .toggle-slider:before {
     background: #374151;
 }
 
-/* 响应式设计 */
+/* 响应式设计 - 平板设备 */
+@media (max-width: 1024px) {
+    .prompt-manager-panel {
+        width: 90%;
+        max-width: 600px;
+    }
+}
+
+/* 响应式设计 - 手机横屏 */
 @media (max-width: 768px) {
     .prompt-manager-panel {
         width: 100%;
     }
     
-    .prompt-toolbar {
+    .preset-selector-container {
+        padding: 12px;
         flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    
+    .preset-menu-btn {
+        width: 100%;
+    }
+    
+    .prompt-toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+    }
+    
+    .add-prompt-btn,
+    .reset-order-btn,
+    .export-preset-btn,
+    .import-preset-btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .prompt-info {
+        padding: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .prompt-list {
+        max-height: 400px;
     }
     
     .prompt-item {
         padding: 12px;
+        gap: 10px;
     }
     
     .form-row {
         flex-direction: column;
+    }
+}
+
+/* 响应式设计 - 手机竖屏 */
+@media (max-width: 480px) {
+    .preset-selector-container {
+        padding: 10px;
+        margin-bottom: 16px;
+    }
+    
+    .preset-selector-container label {
+        font-size: 13px;
+    }
+    
+    .preset-selector {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .preset-menu-btn {
+        height: 32px;
+    }
+    
+    /* 预设下拉菜单 */
+    .preset-dropdown-menu {
+        min-width: 150px;
+    }
+    
+    .preset-dropdown-item {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .preset-dropdown-item svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    /* 工具栏 */
+    .prompt-toolbar {
+        gap: 6px;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+    }
+    
+    .add-prompt-btn,
+    .reset-order-btn,
+    .export-preset-btn,
+    .import-preset-btn {
+        min-width: 100%;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    /* 信息提示 */
+    .prompt-info {
+        padding: 10px;
+        margin-bottom: 12px;
+    }
+    
+    .prompt-info p {
+        font-size: 13px;
+    }
+    
+    .info-hint {
+        font-size: 12px !important;
+    }
+    
+    /* 提示词列表 */
+    .prompt-list {
+        max-height: 350px;
+        padding-right: 5px;
+    }
+    
+    .prompt-item {
+        padding: 10px;
+        gap: 8px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+    }
+    
+    /* 拖拽手柄 */
+    .prompt-drag-handle {
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* 提示词内容 */
+    .prompt-header {
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    
+    .prompt-name {
+        font-size: 13px;
+    }
+    
+    .prompt-role {
+        font-size: 11px;
+        padding: 1px 6px;
+    }
+    
+    .prompt-text {
+        font-size: 12px;
+        padding: 6px;
+        margin-bottom: 6px;
+    }
+    
+    .prompt-placeholder {
+        font-size: 12px;
+        padding: 6px;
+    }
+    
+    .prompt-settings {
+        font-size: 11px;
+    }
+    
+    .prompt-injection {
+        font-size: 11px;
+        padding: 1px 4px;
+    }
+    
+    /* 提示词操作 */
+    .prompt-actions {
+        gap: 6px;
+    }
+    
+    /* 开关样式 */
+    .toggle-switch {
+        width: 40px;
+        height: 22px;
+    }
+    
+    .toggle-slider:before {
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+    }
+    
+    input:checked + .toggle-slider:before {
+        transform: translateX(18px);
+    }
+    
+    /* 编辑和删除按钮 */
+    .edit-btn,
+    .delete-btn {
+        width: 24px;
+        height: 24px;
+    }
+    
+    /* 提示词编辑表单 */
+    .prompt-edit-form {
+        padding: 16px;
+    }
+    
+    .prompt-edit-form .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .prompt-edit-form label {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+    
+    .prompt-edit-form input[type="text"],
+    .prompt-edit-form input[type="number"],
+    .prompt-edit-form select,
+    .prompt-edit-form textarea {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    
+    .prompt-edit-form textarea {
+        font-size: 12px;
+    }
+    
+    .prompt-variables {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+    
+    .form-row {
+        gap: 12px;
+    }
+    
+    .form-buttons {
+        gap: 8px;
+        margin-top: 20px;
+        padding-top: 12px;
+    }
+    
+    .form-buttons button {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+}
+
+/* 超小屏幕设备 */
+@media (max-width: 360px) {
+    .preset-selector-container {
+        padding: 8px;
+    }
+    
+    .prompt-toolbar {
+        gap: 4px;
+    }
+    
+    .add-prompt-btn,
+    .reset-order-btn,
+    .export-preset-btn,
+    .import-preset-btn {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+    
+    .prompt-item {
+        padding: 8px;
+    }
+    
+    .prompt-name {
+        font-size: 12px;
+    }
+    
+    .prompt-text {
+        font-size: 11px;
+        padding: 4px;
+    }
+    
+    .form-buttons {
+        flex-direction: column;
+    }
+    
+    .form-buttons button {
+        width: 100%;
+        padding: 6px 12px;
     }
 }
