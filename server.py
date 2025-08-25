@@ -280,6 +280,45 @@ def get_world_list():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/world/import', methods=['POST'])
+def import_world_book():
+    """导入世界书"""
+    try:
+        world_book = request.json
+        
+        # 保存世界书
+        book_id = world_book.get('id', f"wb_{uuid.uuid4().hex[:8]}")
+        safe_id = book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
+        
+        # 保存世界书元数据
+        meta_file = os.path.join('data/worlds', f"{safe_id}_meta.json")
+        with open(meta_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                'id': book_id,
+                'name': world_book.get('name', '未命名'),
+                'description': world_book.get('description', ''),
+                'createDate': world_book.get('createDate'),
+                'active': world_book.get('active', False)
+            }, f, ensure_ascii=False, indent=2)
+        
+        # 保存每个条目
+        entries = world_book.get('entries', [])
+        for entry in entries:
+            entry_id = entry.get('id', f"entry_{uuid.uuid4().hex[:8]}")
+            entry_safe_id = entry_id.replace('/', '_').replace('\\', '_').replace(':', '_')
+            entry_file = os.path.join('data/worlds', f"{safe_id}_{entry_safe_id}.json")
+            
+            with open(entry_file, 'w', encoding='utf-8') as f:
+                json.dump(entry, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "id": book_id,
+            "message": f"世界书已导入，包含 {len(entries)} 个条目"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/world/delete/<path:entry_id>', methods=['DELETE'])
 def delete_world_entry(entry_id):
     """删除世界书条目"""

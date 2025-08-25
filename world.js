@@ -687,6 +687,10 @@ window.importWorldBook = async function(file) {
         try {
             const data = JSON.parse(e.target.result);
             
+            // 获取世界书名称
+            let worldBookName = data.name || data.title || file.name.replace('.json', '') || '导入的世界书';
+            let worldBookDesc = data.description || '';
+            
             // 支持多种格式
             let entries = [];
             
@@ -761,17 +765,94 @@ window.importWorldBook = async function(file) {
                     continue; // 跳过没有内容的条目
                 }
                 
-                worldBookEntries.push(entry);
+                // 不要直接push到worldBookEntries！
             }
             
-            // 保存到本地
-            saveWorldBookToLocal();
+            // 创建新的世界书
+            const processedEntries = [];
+            for (const item of entries) {
+                // 处理每个条目
+                let keys = [];
+                if (item.key && Array.isArray(item.key) && item.key.length > 0) {
+                    keys = item.key;
+                } else if (item.keys && Array.isArray(item.keys) && item.keys.length > 0) {
+                    keys = item.keys;
+                } else if (item.keysecondary && Array.isArray(item.keysecondary) && item.keysecondary.length > 0) {
+                    keys = item.keysecondary;
+                }
+                
+                let position = 'before';
+                if (item.position === 1 || item.position === 'after') {
+                    position = 'after';
+                }
+                
+                const title = item.comment || item.title || item.name || '未命名';
+                
+                const entry = {
+                    id: item.uid !== undefined ? 'world_' + item.uid : (item.id || 'world_' + Date.now() + Math.random().toString(36).substr(2, 9)),
+                    keys: keys,
+                    content: item.content || item.entry || item.value || '',
+                    order: item.order || item.insertion_order || item.priority || 100,
+                    probability: item.probability !== undefined ? item.probability : 100,
+                    use_probability: item.useProbability !== false,
+                    depth: item.depth || item.extensions?.depth || item.scan_depth || 4,
+                    position: position,
+                    enabled: item.disable !== true && item.enabled !== false,
+                    title: title,
+                    comment: item.memo || item.note || '',
+                    create_date: item.create_date || new Date().toISOString()
+                };
+                
+                if (typeof entry.keys === 'string') {
+                    entry.keys = entry.keys.split(',').map(k => k.trim()).filter(k => k);
+                } else if (!Array.isArray(entry.keys)) {
+                    entry.keys = [];
+                }
+                
+                if (entry.content) {
+                    processedEntries.push(entry);
+                }
+            }
+            
+            // 创建新的世界书对象
+            const newWorldBook = {
+                id: 'wb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                name: worldBookName,
+                description: worldBookDesc,
+                entries: processedEntries,
+                createDate: new Date().toISOString(),
+                active: false
+            };
+            
+            // 添加到世界书列表
+            worldBooks.push(newWorldBook);
+            saveWorldBooks();
             
             // 更新显示
-            updateWorldBookDisplay();
+            updateWorldBooksDisplay();
             
-            const importedCount = entries.filter(item => item.content).length;
-            showToast(`成功导入 ${importedCount} 个世界书条目`, 'success');
+            // 自动选中并显示导入的世界书
+            selectWorldBook(newWorldBook.id);
+            
+            // 保存到后端
+            try {
+                const response = await fetch(`${config.api_base}/world/import`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newWorldBook)
+                });
+                
+                if (!response.ok) {
+                    console.error('保存到后端失败');
+                }
+            } catch (error) {
+                console.error('保存到后端失败:', error);
+            }
+            
+            const importedCount = processedEntries.length;
+            showToast(`成功导入世界书"${worldBookName}"，包含 ${importedCount} 个条目`, 'success');
             
             // 重置文件输入
             document.getElementById('worldImportFile').value = '';
@@ -786,18 +867,27 @@ window.importWorldBook = async function(file) {
     reader.readAsText(file);
 };
 
-// 导出世界书
-window.exportWorldBook = function() {
-    if (worldBookEntries.length === 0) {
-        showToast('没有可导出的世界书条目', 'warning');
+// 导出当前世界书
+window.exportCurrentWorldBook = function() {
+    const selector = document.getElementById('worldBookSelector');
+    if (!selector || !selector.value) {
+        showToast('请先选择要导出的世界书', 'warning');
+        return;
+    }
+    
+    const worldBook = worldBooks.find(wb => wb.id === selector.value);
+    if (!worldBook || !worldBook.entries || worldBook.entries.length === 0) {
+        showToast('该世界书没有条目', 'warning');
         return;
     }
     
     // 转换为兼容格式
     const exportData = {
-        entries: worldBookEntries,
+        name: worldBook.name,
+        description: worldBook.description,
+        entries: worldBook.entries,
         // 添加SillyTavern兼容字段
-        world_info: worldBookEntries.map(entry => ({
+        world_info: worldBook.entries.map(entry => ({
             uid: parseInt(entry.id.replace(/\D/g, '')) || Date.now(),
             key: entry.keys,
             keysecondary: [],
@@ -809,10 +899,10 @@ window.exportWorldBook = function() {
             disable: !entry.enabled,
             selective: true,
             constant: false,
-            probability: 100,
-            useProbability: true,
+            probability: entry.probability || 100,
+            useProbability: entry.use_probability !== false,
             group: '',
-            displayIndex: worldBookEntries.indexOf(entry)
+            displayIndex: worldBook.entries.indexOf(entry)
         }))
     };
     
@@ -821,11 +911,36 @@ window.exportWorldBook = function() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `worldbook_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `${worldBook.name.replace(/[^a-zA-Z0-9一-龥]/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     
-    showToast('世界书已导出', 'success');
+    showToast(`世界书"${worldBook.name}"已导出`, 'success');
+};
+
+// 导出所有世界书
+window.exportAllWorldBooks = function() {
+    if (worldBooks.length === 0) {
+        showToast('没有可导出的世界书', 'warning');
+        return;
+    }
+    
+    const exportData = {
+        worldBooks: worldBooks,
+        activeBooks: activeWorldBooks,
+        exportDate: new Date().toISOString()
+    };
+    
+    const json = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `all_worldbooks_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast(`已导出 ${worldBooks.length} 个世界书`, 'success');
 };
 
 // 保存世界书到本地存储
