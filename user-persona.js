@@ -449,8 +449,7 @@ window.exportPersona = function() {
 
 // 保存到本地存储
 function savePersonaToLocal() {
-    localStorage.setItem('userPersona', JSON.stringify(userPersona));
-    // 同时保存到服务器
+    // 不使用localStorage，直接保存到服务器
     savePersonaToServer();
 }
 
@@ -471,8 +470,9 @@ async function savePersonaToServer() {
 
 // 从本地存储加载
 userPersona.loadFromLocal = function() {
-    const saved = localStorage.getItem('userPersona');
-    if (saved) {
+    // 不使用localStorage
+    const saved = null;
+    if (false) {
         try {
             const data = JSON.parse(saved);
             Object.assign(this, data);

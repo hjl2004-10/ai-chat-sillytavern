@@ -1,13 +1,25 @@
-// API配置
-let config = {
+// API配置 - 暴露到全局作用域供其他模块使用
+window.config = {
     api_url: 'https://api.openai.com/v1',  // OpenAI兼容的API地址
     api_key: '',
     model: '',
     streaming: true,
-    temperature: 0.7,
-    max_tokens: 2048,
+    temperature: 1.0,
+    // 前端控制参数
+    frontend_max_history: 65536,  // 发送给AI的历史最大字符数(64k)
+    frontend_max_response: 10000,  // AI回复的最大字符数（前端截断10k）
+    // AI参数
+    top_p: 1.0,
+    frequency_penalty: 0,
+    presence_penalty: 0,
     api_base: 'http://localhost:5000/api'  // 本地服务器地址
 };
+
+// 创建局部引用，方便在本文件中使用
+const config = window.config;
+
+// 缓存的模型列表
+let cachedModelList = null;
 
 // 上下文管理
 let contextMessages = [];
@@ -58,8 +70,9 @@ function updateChatHeader() {
     const chatHeader = document.querySelector('.chat-header');
     if (!chatHeader) return;
     
-    // 检查是否启用角色显示
-    const showHeader = localStorage.getItem('showCharacterHeader') !== 'false'; // 默认显示
+    // 检查是否启用角色显示 - 从开关获取状态
+    const toggle = document.getElementById('show-character-header');
+    const showHeader = toggle ? toggle.checked : true; // 从开关获取状态，默认显示
     
     if (window.currentCharacter && showHeader) {
         // 有角色选中且启用显示时显示角色信息
@@ -106,7 +119,20 @@ window.updateChatHeader = updateChatHeader;
 // 切换角色标题栏显示
 window.toggleCharacterHeader = function(show) {
     console.log('切换角色显示:', show);
-    localStorage.setItem('showCharacterHeader', show ? 'true' : 'false');
+    
+    // 更新全局config
+    config.showCharacterHeader = show;
+    
+    // 保存完整的config到服务器
+    fetch('/api/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)  // 发送完整config，而不是部分
+    }).catch(error => console.error('保存角色显示设置失败:', error));
+    
+    // 立即更新显示
     updateChatHeader();
     
     // 显示提示
@@ -199,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 初始化提示词管理器（如果有的话）
     if (typeof initPromptManager === 'function') {
-        initPromptManager();
+        await initPromptManager();
     }
     
     // 初始化AI设置（如果有的话）
@@ -213,13 +239,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 更新角色标题栏
     updateChatHeader();
     
-    // 初始化开关状态
+    // 初始化开关状态 - 使用已经加载的全局config
     setTimeout(() => {
-        const showHeader = localStorage.getItem('showCharacterHeader') !== 'false';
+        // 使用全局config，不再重复请求
+        const showHeader = window.config.showCharacterHeader !== undefined ? window.config.showCharacterHeader : true;
+        
         const toggle = document.getElementById('show-character-header');
         if (toggle) {
             toggle.checked = showHeader;
             console.log('初始化开关状态:', showHeader);
+            // 更新显示
+            updateChatHeader();
         } else {
             console.log('未找到开关元素');
         }
@@ -229,7 +259,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 // 加载配置
 async function loadConfig() {
     // 先从localStorage加载本地缓存的配置
-    const localConfig = localStorage.getItem('aiChatConfig');
+    const localConfig = null; // 不使用localStorage
     if (localConfig) {
         try {
             const savedConfig = JSON.parse(localConfig);
@@ -254,9 +284,20 @@ async function loadConfig() {
             const data = await response.json();
             // 如果服务器有配置，优先使用服务器的
             if (data.api_url || data.api_key) {
-                const api_base = config.api_base;
-                Object.assign(config, data);
-                config.api_base = api_base;
+                // 只加载需要的参数，过滤掉废弃的
+                config.api_url = data.api_url || config.api_url;
+                config.api_key = data.api_key || config.api_key;
+                config.model = data.model || config.model;
+                config.streaming = data.streaming !== undefined ? data.streaming : config.streaming;
+                config.temperature = data.temperature !== undefined ? data.temperature : config.temperature;
+                config.frontend_max_history = data.frontend_max_history || config.frontend_max_history;
+                config.frontend_max_response = data.frontend_max_response || config.frontend_max_response;
+                config.top_p = data.top_p !== undefined ? data.top_p : config.top_p;
+                config.frequency_penalty = data.frequency_penalty !== undefined ? data.frequency_penalty : config.frequency_penalty;
+                config.presence_penalty = data.presence_penalty !== undefined ? data.presence_penalty : config.presence_penalty;
+                config.currentPresetName = data.currentPresetName || config.currentPresetName;
+                config.showCharacterHeader = data.showCharacterHeader !== undefined ? data.showCharacterHeader : config.showCharacterHeader;
+                // 不加载 max_context, max_tokens, api_base 等废弃参数
                 
                 // 保存到本地
                 saveConfigToLocal();
@@ -271,7 +312,7 @@ async function loadConfig() {
 function saveConfigToLocal() {
     const configToSave = { ...config };
     delete configToSave.api_base;
-    localStorage.setItem('aiChatConfig', JSON.stringify(configToSave));
+    // 不使用localStorage保存配置
 }
 
 // 保存配置
@@ -314,10 +355,14 @@ async function loadModels() {
         if (response.ok) {
             const data = await response.json();
             if (data.models && data.models.length > 0) {
+                // 缓存模型列表
+                cachedModelList = data.models;
+                console.log('已缓存模型列表:', cachedModelList);
+                
                 // 如果当前没有选中的模型，或者选中的模型不在列表中
                 if (!config.model || !data.models.includes(config.model)) {
                     // 尝试从localStorage恢复上次使用的模型
-                    const lastModel = localStorage.getItem('lastUsedModel');
+                    const lastModel = null; // 不使用localStorage
                     if (lastModel && data.models.includes(lastModel)) {
                         config.model = lastModel;
                     } else {
@@ -327,7 +372,7 @@ async function loadModels() {
                 }
                 updateModelDisplay();
                 // 保存当前选择的模型
-                localStorage.setItem('lastUsedModel', config.model);
+                // 不使用localStorage保存
                 saveConfigToLocal();
             }
         }
@@ -348,45 +393,59 @@ function updateModelDisplay() {
 
 // 显示模型选择器
 async function showModelSelector() {
-    try {
-        const response = await fetch(`${config.api_base}/models`);
-        if (!response.ok) {
-            showToast('请先配置API', 'warning');
-            showSettings();
+    // 优先使用缓存的模型列表
+    let models = cachedModelList;
+    
+    // 如果没有缓存，才去请求
+    if (!models || models.length === 0) {
+        try {
+            const response = await fetch(`${config.api_base}/models`);
+            if (!response.ok) {
+                showToast('请先配置API', 'warning');
+                showSettings();
+                return;
+            }
+            
+            const data = await response.json();
+            if (!data.models || data.models.length === 0) {
+                showToast('没有可用的模型', 'warning');
+                return;
+            }
+            
+            // 缓存模型列表
+            models = data.models;
+            cachedModelList = models;
+            console.log('获取并缓存模型列表:', cachedModelList);
+        } catch (error) {
+            console.error('获取模型列表失败:', error);
+            showToast('获取模型列表失败', 'error');
             return;
         }
-        
-        const data = await response.json();
-        if (!data.models || data.models.length === 0) {
-            showToast('没有可用的模型', 'warning');
-            return;
-        }
-        
-        // 创建模型选择弹窗
-        const modal = createModal('选择模型', '');
-        const modelList = document.createElement('div');
-        modelList.className = 'model-list';
-        
-        data.models.forEach(model => {
-            const modelItem = document.createElement('div');
-            modelItem.className = 'model-item';
-            modelItem.textContent = model;
-            modelItem.onclick = () => {
-                config.model = model;
-                updateModelDisplay();
-                // 保存选择的模型到localStorage
-                localStorage.setItem('lastUsedModel', model);
-                saveConfig();
-                modal.remove();
-            };
-            modelList.appendChild(modelItem);
-        });
-        
-        modal.querySelector('.modal-body').appendChild(modelList);
-    } catch (error) {
-        console.error('获取模型列表失败:', error);
-        showToast('获取模型列表失败', 'error');
+    } else {
+        console.log('使用缓存的模型列表:', models);
     }
+    
+    // 创建模型选择弹窗
+    const modal = createModal('选择模型', '');
+    const modelList = document.createElement('div');
+    modelList.className = 'model-list';
+    
+    models.forEach(model => {
+        const modelItem = document.createElement('div');
+        modelItem.className = 'model-item';
+        modelItem.textContent = model;
+        modelItem.onclick = () => {
+            config.model = model;
+            updateModelDisplay();
+            // 保存选择的模型到localStorage
+            // 不使用localStorage保存
+            saveConfig();
+            modal.remove();
+        };
+        modelList.appendChild(modelItem);
+    });
+    
+    modal.querySelector('.modal-body').appendChild(modelList);
 }
 
 // 显示设置界面
@@ -407,10 +466,6 @@ function showSettings() {
             <label>温度 (Temperature):</label>
             <input type="range" id="temperature" min="0" max="2" step="0.1" value="${config.temperature}">
             <span id="temp-value">${config.temperature}</span>
-        </div>
-        <div class="form-group">
-            <label>最大令牌数:</label>
-            <input type="number" id="max-tokens" value="${config.max_tokens}" min="1" max="4096">
         </div>
         <div class="form-group">
             <label>
@@ -443,13 +498,13 @@ window.saveSettingsFromModal = function() {
     config.api_url = modal.querySelector('#api-url').value;
     config.api_key = modal.querySelector('#api-key').value;
     config.temperature = parseFloat(modal.querySelector('#temperature').value);
-    config.max_tokens = parseInt(modal.querySelector('#max-tokens').value);
     config.streaming = modal.querySelector('#streaming').checked;
     
     saveConfig();
     
-    // 如果API地址或密钥变了，重新加载模型列表
+    // 如果API地址或密钥变了，清空缓存并重新加载模型列表
     if (oldApiUrl !== config.api_url || oldApiKey !== config.api_key) {
+        cachedModelList = null;  // 清空缓存
         loadModels();
     }
     
@@ -496,7 +551,7 @@ async function sendMessage() {
             if (chatHistory.length > 20) {
                 chatHistory.pop(); // 限制历史记录数量
             }
-            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            // 不使用localStorage保存
         }
     }
     
@@ -513,7 +568,7 @@ async function sendMessage() {
             userPersonaData = window.getCurrentUserPersona();
         }
         const userSettings = {
-            userName: userPersonaData?.name || localStorage.getItem('userName') || 'User',
+            userName: userPersonaData?.name || 'User',
             persona: userPersonaData?.description || ''
         };
         
@@ -545,17 +600,51 @@ async function sendMessage() {
         }
     }
     
+    // 前端历史截取控制
+    if (config.frontend_max_history && config.frontend_max_history > 0) {
+        let totalLength = 0;
+        let truncatedMessages = [];
+        
+        // 从后往前遍历消息，保留最新的消息
+        for (let i = finalMessages.length - 1; i >= 0; i--) {
+            const messageLength = JSON.stringify(finalMessages[i]).length;
+            if (totalLength + messageLength <= config.frontend_max_history) {
+                truncatedMessages.unshift(finalMessages[i]);
+                totalLength += messageLength;
+            } else if (i === 0 && truncatedMessages.length > 0) {
+                // 如果是第一条消息（通常是系统提示），尽量保留
+                truncatedMessages.unshift(finalMessages[i]);
+                break;
+            } else {
+                break;
+            }
+        }
+        
+        if (truncatedMessages.length < finalMessages.length) {
+            console.log(`[历史截取] 从${finalMessages.length}条消息截取到${truncatedMessages.length}条，总字符数: ${totalLength}`);
+            finalMessages = truncatedMessages;
+        }
+    }
+    
     // 显示加载状态
     const loadingDiv = addMessageToChat('assistant', '', true);
     
     try {
-        // 准备请求数据（使用构建好的完整消息）
+        // 准备请求数据（不发送max_tokens，让服务商自由发挥）
         const requestData = {
             messages: finalMessages,
             model: config.model,
-            temperature: config.temperature,
-            max_tokens: config.max_tokens,
-            stream: config.streaming
+            temperature: config.temperature || 1.0,
+            stream: config.streaming !== undefined ? config.streaming : true,
+            // AI参数
+            top_p: config.top_p || 1.0,
+            frequency_penalty: config.frequency_penalty || 0,
+            presence_penalty: config.presence_penalty || 0,
+            top_k: config.top_k,
+            repetition_penalty: config.repetition_penalty,
+            min_p: config.min_p,
+            top_a: config.top_a,
+            typical_p: config.typical_p
         };
         
         if (config.streaming) {
@@ -594,7 +683,17 @@ async function sendMessage() {
                             const parsed = JSON.parse(data);
                             if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
                                 assistantMessage += parsed.choices[0].delta.content;
-                                contentDiv.textContent = assistantMessage;
+                                
+                                // 前端回复截断控制
+                                if (config.frontend_max_response && assistantMessage.length >= config.frontend_max_response) {
+                                    assistantMessage = assistantMessage.substring(0, config.frontend_max_response);
+                                    contentDiv.textContent = assistantMessage + '\n\n[回复已达到最大长度限制，已自动截断]';
+                                    console.log(`[回复截断] AI回复已达到${config.frontend_max_response}字符限制，已截断`);
+                                    reader.cancel(); // 取消读取流
+                                    break;
+                                } else {
+                                    contentDiv.textContent = assistantMessage;
+                                }
                                 // 自动滚动到底部
                                 messageDiv.scrollIntoView({ behavior: 'smooth' });
                             }
@@ -624,8 +723,16 @@ async function sendMessage() {
             loadingDiv.remove();
             
             if (data.choices && data.choices[0].message) {
-                const assistantMessage = data.choices[0].message.content;
-                addMessageToChat('assistant', assistantMessage);
+                let assistantMessage = data.choices[0].message.content;
+                
+                // 前端回复截断控制
+                if (config.frontend_max_response && assistantMessage.length > config.frontend_max_response) {
+                    assistantMessage = assistantMessage.substring(0, config.frontend_max_response);
+                    console.log(`[回复截断] AI回复超过${config.frontend_max_response}字符限制，已截断`);
+                    addMessageToChat('assistant', assistantMessage + '\n\n[回复已达到最大长度限制，已自动截断]');
+                } else {
+                    addMessageToChat('assistant', assistantMessage);
+                }
                 
                 // 添加到上下文
                 contextMessages.push({ role: 'assistant', content: assistantMessage });
@@ -706,8 +813,8 @@ function addMessageToChat(role, content, isLoading = false) {
             <div class="message-actions">
                 <button class="message-btn edit-btn" onclick="editMessage(${messageIndex})" title="编辑">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                     </svg>
                 </button>
                 <button class="message-btn delete-btn" onclick="deleteMessage(${messageIndex})" title="删除">
@@ -1319,14 +1426,14 @@ async function loadChatHistory() {
             });
             
             // 同步到localStorage作为缓存
-            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            // 不使用localStorage保存
         } else {
             throw new Error('服务器响应错误');
         }
     } catch (error) {
         console.error('从服务器加载失败，使用本地缓存:', error);
         // 降级到localStorage
-        const saved = localStorage.getItem('chatHistory');
+        const saved = null; // 不使用localStorage
         if (saved) {
             try {
                 chatHistory = JSON.parse(saved);
@@ -1583,8 +1690,8 @@ function refreshChatDisplay() {
             <div class="message-actions">
                 <button class="message-btn edit-btn" onclick="editMessage(${index})" title="编辑">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                     </svg>
                 </button>
                 <button class="message-btn delete-btn" onclick="deleteMessage(${index})" title="删除">
@@ -1703,7 +1810,7 @@ window.editChatTitle = async function(index) {
                 }
                 
                 // 更新localStorage
-                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+                // 不使用localStorage保存
             }
             
             // 恢复显示
@@ -1753,7 +1860,7 @@ window.deleteHistoryChat = async function(index) {
             chatHistory.splice(index, 1);
             
             // 更新localStorage
-            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            // 不使用localStorage保存
             
             // 如果删除的是当前对话，清空当前对话
             if ((chat.chatId === currentChatId || chat.name === currentChatId)) {

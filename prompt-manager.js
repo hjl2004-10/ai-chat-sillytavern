@@ -144,7 +144,13 @@ const defaultPromptOrder = [
 ];
 
 // 显示提示词管理器
-window.showPromptManager = function() {
+window.showPromptManager = async function() {
+    // 确保预设已经初始化
+    if (!window.promptManagerInitialized) {
+        await initPromptManager();
+        window.promptManagerInitialized = true;
+    }
+    
     // 创建覆盖层
     const overlay = document.createElement('div');
     overlay.className = 'side-panel-overlay';
@@ -207,6 +213,7 @@ window.showPromptManager = function() {
             <div class="prompt-info">
                 <p>拖拽提示词以调整顺序，点击编辑内容，切换开关启用/禁用</p>
                 <p class="info-hint">带 📌 标记的是系统占位符，会被角色卡和世界书内容自动替换</p>
+                <div id="token-summary" class="token-summary"></div>
             </div>
             
             <div class="prompt-list" id="promptList">
@@ -242,6 +249,125 @@ window.closePromptManager = function() {
         }, 300);
     }
 };
+
+// 估算token数量（简单估算：英文约4字符=1token，中文约2字符=1token）
+function estimateTokens(text) {
+    if (!text) return 0;
+    // 粗略估算：中文字符算1.5个token，英文单词算1个token
+    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishWords = (text.match(/[a-zA-Z]+/g) || []).length;
+    return Math.ceil(chineseChars * 1.5 + englishWords);
+}
+
+// 获取marker预览内容
+function getMarkerPreview(identifier) {
+    let previewText = '';
+    let fullContent = '';
+    let charCount = 0;
+    let tokenEstimate = 0;
+    
+    switch(identifier) {
+        case 'worldInfoBefore':
+        case 'worldInfoAfter':
+            // 获取激活的世界书条目
+            if (window.worldManager && window.worldManager.activeBooks.length > 0) {
+                const entries = window.worldManager.getActivatedEntries(window.contextMessages);
+                if (entries && entries.length > 0) {
+                    fullContent = entries.map(e => e.content || '').join('\n');
+                    charCount = fullContent.length;
+                    tokenEstimate = estimateTokens(fullContent);
+                    previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                    return `<div class="preview-stats">📚 世界书 (${entries.length}条激活 | ${charCount}字 | ~${tokenEstimate}tokens)</div>
+                            <div class="preview-content">${escapeHtml(previewText)}</div>`;
+                } else {
+                    return `<div class="preview-stats">📚 世界书 (无激活条目)</div>
+                            <div class="preview-hint">将根据对话内容自动触发相关条目</div>`;
+                }
+            }
+            return `<div class="preview-stats">📚 世界书 (未加载)</div>`;
+            
+        case 'charDescription':
+            const currentChar = window.currentCharacter || {};
+            if (currentChar.description) {
+                fullContent = currentChar.description;
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                return `<div class="preview-stats">👤 角色描述 (${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">👤 角色描述 (未加载角色)</div>`;
+            
+        case 'charPersonality':
+            const char = window.currentCharacter || {};
+            if (char.personality) {
+                fullContent = char.personality;
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                return `<div class="preview-stats">🎭 角色性格 (${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">🎭 角色性格 (未设置)</div>`;
+            
+        case 'scenario':
+            const charScenario = window.currentCharacter || {};
+            if (charScenario.scenario) {
+                fullContent = charScenario.scenario;
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                return `<div class="preview-stats">🎬 场景设定 (${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">🎬 场景设定 (未设置)</div>`;
+            
+        case 'personaDescription':
+            // 从用户角色管理获取当前角色
+            const personaData = window.userPersonaManager?.getCurrentPersona();
+            if (personaData && personaData.description) {
+                fullContent = personaData.description;
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                return `<div class="preview-stats">👤 用户角色 (${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">👤 用户角色 (未设置)</div>
+                    <div class="preview-hint">在用户角色管理中设置您的角色</div>`;
+            
+        case 'dialogueExamples':
+            const charExample = window.currentCharacter || {};
+            if (charExample.mes_example) {
+                fullContent = charExample.mes_example;
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                previewText = fullContent.substring(0, 150) + (fullContent.length > 150 ? '...' : '');
+                return `<div class="preview-stats">💬 对话示例 (${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">💬 对话示例 (无示例)</div>`;
+            
+        case 'chatHistory':
+            if (window.contextMessages && window.contextMessages.length > 0) {
+                // 计算聊天历史的总字数和token
+                fullContent = window.contextMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+                charCount = fullContent.length;
+                tokenEstimate = estimateTokens(fullContent);
+                // 显示最近的几条消息
+                const recentMessages = window.contextMessages.slice(-3);
+                previewText = recentMessages.map(m => 
+                    `${m.role}: ${m.content.substring(0, 50)}${m.content.length > 50 ? '...' : ''}`
+                ).join('\n');
+                return `<div class="preview-stats">📜 聊天历史 (${window.contextMessages.length}条 | ${charCount}字 | ~${tokenEstimate}tokens)</div>
+                        <div class="preview-content">${escapeHtml(previewText)}</div>`;
+            }
+            return `<div class="preview-stats">📜 聊天历史 (无消息)</div>`;
+            
+        default:
+            return `<div class="preview-stats">📌 ${identifier} (系统占位符)</div>`;
+    }
+}
 
 // 加载提示词列表
 function loadPromptList() {
@@ -292,7 +418,7 @@ function loadPromptList() {
                     </div>
                 ` : `
                     <div class="prompt-placeholder">
-                        动态内容 - 将被${prompt.name}替换
+                        ${getMarkerPreview(prompt.identifier)}
                     </div>
                 `}
                 
@@ -308,7 +434,8 @@ function loadPromptList() {
             <div class="prompt-actions">
                 <label class="toggle-switch">
                     <input type="checkbox" 
-                           ${prompt.enabled ? 'checked' : ''} 
+                           ${prompt.enabled !== false ? 'checked' : ''} 
+                           ${prompt.marker ? 'disabled' : ''}
                            onchange="togglePrompt('${prompt.identifier}', this.checked)">
                     <span class="toggle-slider"></span>
                 </label>
@@ -316,8 +443,8 @@ function loadPromptList() {
                 ${!prompt.marker ? `
                     <button onclick="editPrompt('${prompt.identifier}')" class="edit-btn" title="编辑">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                         </svg>
                     </button>
                 ` : ''}
@@ -336,6 +463,9 @@ function loadPromptList() {
     
     // 初始化拖拽功能
     initDragAndDrop();
+    
+    // 更新token统计
+    updateTokenSummary();
 }
 
 // 初始化拖拽排序
@@ -395,6 +525,65 @@ function initDragAndDrop() {
     });
 }
 
+// 更新token统计
+function updateTokenSummary() {
+    const summaryEl = document.getElementById('token-summary');
+    if (!summaryEl) return;
+    
+    let totalTokens = 0;
+    let totalChars = 0;
+    const details = [];
+    
+    // 计算所有启用的提示词的token
+    const prompts = promptManager.preset.prompts || [];
+    prompts.forEach(prompt => {
+        if (prompt.marker || prompt.enabled !== false) {
+            if (prompt.marker) {
+                // 对于marker，获取实际内容来计算
+                const markerContent = getMarkerContent(prompt.identifier, 
+                    window.currentCharacter, 
+                    window.worldManager?.getActivatedEntries(window.contextMessages),
+                    window.contextMessages,
+                    { persona: window.userPersonaManager?.getCurrentPersona()?.description }
+                );
+                if (markerContent && typeof markerContent === 'string') {
+                    const tokens = estimateTokens(markerContent);
+                    totalTokens += tokens;
+                    totalChars += markerContent.length;
+                }
+            } else if (prompt.content) {
+                // 对于普通提示词
+                const tokens = estimateTokens(prompt.content);
+                totalTokens += tokens;
+                totalChars += prompt.content.length;
+            }
+        }
+    });
+    
+    // 估算价格（按Claude 3的价格：输入$3/1M tokens，输出$15/1M tokens）
+    const inputCost = (totalTokens / 1000000) * 3;
+    const outputCost = (2000 / 1000000) * 15; // 假设输出2000 tokens
+    const totalCost = inputCost + outputCost;
+    
+    summaryEl.innerHTML = `
+        <div class="summary-title">📊 Token统计</div>
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span class="stat-label">总字数:</span>
+                <span class="stat-value">${totalChars}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">预估Tokens:</span>
+                <span class="stat-value">${totalTokens}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">预估成本:</span>
+                <span class="stat-value">$${totalCost.toFixed(4)}</span>
+            </div>
+        </div>
+    `;
+}
+
 // 更新提示词顺序
 function updatePromptOrder() {
     const items = document.querySelectorAll('.prompt-item');
@@ -420,6 +609,12 @@ window.togglePrompt = function(identifier, enabled) {
     const prompt = allPrompts.find(p => p.identifier === identifier);
     
     if (prompt) {
+        // marker类型的提示词不能被禁用
+        if (prompt.marker) {
+            showToast('系统占位符不能被禁用', 'warning');
+            return;
+        }
+        
         prompt.enabled = enabled;
         savePresetToLocal();
         
@@ -636,7 +831,8 @@ const presetManager = {
             return false;
         }
         promptManager.currentPresetName = presetName;
-        saveAllPresetsToLocal();
+        // 保存当前选择到服务器配置
+        saveCurrentPresetToConfig();
         loadPromptList();
         showToast(`已切换到预设: ${presetName}`, 'success');
         return true;
@@ -658,7 +854,10 @@ const presetManager = {
         }
         
         promptManager.currentPresetName = name;
-        saveAllPresetsToLocal();
+        // 保存当前选择到服务器配置
+        saveCurrentPresetToConfig();
+        // 保存新预设到服务器
+        savePresetToServer(promptManager.presets[name], name);
         showToast(`预设 "${name}" 已创建`, 'success');
         return true;
     },
@@ -680,9 +879,18 @@ const presetManager = {
         // 如果删除的是当前预设，切换到默认预设
         if (promptManager.currentPresetName === name) {
             promptManager.currentPresetName = 'Default';
+            saveCurrentPresetToConfig();
         }
         
-        saveAllPresetsToLocal();
+        // 从服务器删除预设文件
+        fetch(`/api/preset/delete/${name}`, { method: 'DELETE' })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('删除服务器预设失败');
+                }
+            })
+            .catch(error => console.error('删除预设错误:', error));
+        
         showToast(`预设 "${name}" 已删除`, 'success');
         return true;
     },
@@ -709,9 +917,15 @@ const presetManager = {
         
         if (promptManager.currentPresetName === oldName) {
             promptManager.currentPresetName = newName;
+            saveCurrentPresetToConfig();
         }
         
-        saveAllPresetsToLocal();
+        // 保存新名称的预设到服务器
+        savePresetToServer(promptManager.presets[newName], newName);
+        // 删除旧名称的预设文件
+        fetch(`/api/preset/delete/${oldName}`, { method: 'DELETE' })
+            .catch(error => console.error('删除旧预设文件失败:', error));
+        
         showToast(`预设已重命名为 "${newName}"`, 'success');
         return true;
     },
@@ -762,21 +976,16 @@ const ROLE_IDS = {
     100011: 'jailbreak'
 };
 
-// 保存所有预设到本地存储和服务器
+// 保存当前预设到服务器（不再使用本地缓存）
 function saveAllPresetsToLocal() {
-    const data = {
-        presets: promptManager.presets,
-        currentPresetName: promptManager.currentPresetName
-    };
-    localStorage.setItem('promptPresets', JSON.stringify(data));
-    
-    // 同时保存当前预设到服务器
+    // 只保存当前预设到服务器
     savePresetToServer(promptManager.preset, promptManager.currentPresetName);
 }
 
-// 保存当前预设（兼容旧版本）
+// 保存当前预设到服务器
 function savePresetToLocal() {
-    saveAllPresetsToLocal();
+    // 直接保存当前预设到服务器
+    savePresetToServer(promptManager.preset, promptManager.currentPresetName);
 }
 
 // 保存预设到服务器
@@ -803,22 +1012,56 @@ async function savePresetToServer(preset, presetName) {
     }
 }
 
-// 从本地存储和服务器加载所有预设
+// 从服务器配置加载当前选择的预设
+async function loadCurrentPresetFromConfig() {
+    // 使用全局config，不再重复请求
+    if (window.config && window.config.currentPresetName && promptManager.presets[window.config.currentPresetName]) {
+        promptManager.currentPresetName = window.config.currentPresetName;
+        console.log('从配置加载预设:', window.config.currentPresetName);
+    }
+}
+
+// 保存当前选择的预设到服务器配置
+async function saveCurrentPresetToConfig() {
+    try {
+        // 更新全局config
+        if (window.config) {
+            window.config.currentPresetName = promptManager.currentPresetName;
+        }
+        
+        // 发送完整的config，而不是部分
+        const response = await fetch('/api/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(window.config)  // 发送完整config
+        });
+        
+        if (response.ok) {
+            console.log('预设选择已保存到配置');
+        }
+    } catch (error) {
+        console.error('保存预设选择到配置失败:', error);
+    }
+}
+
+// 从服务器加载所有预设（不使用本地缓存）
 async function loadAllPresetsFromLocal() {
-    // 先尝试从服务器加载
+    // 清空当前预设列表
+    promptManager.presets = {};
+    
+    // 只从服务器加载
     try {
         const response = await fetch('/api/preset/list');
         if (response.ok) {
             const data = await response.json();
             if (data.presets && data.presets.length > 0) {
-                // 将服务器的预设合并到本地
+                // 加载服务器的预设
                 data.presets.forEach(preset => {
                     const name = preset.name || preset.filename?.replace('.json', '') || 'Unnamed';
-                    // 不覆盖本地已有的同名预设
-                    if (!promptManager.presets[name]) {
-                        delete preset.filename; // 移除filename字段
-                        promptManager.presets[name] = preset;
-                    }
+                    delete preset.filename; // 移除filename字段
+                    promptManager.presets[name] = preset;
                 });
             }
         }
@@ -826,40 +1069,14 @@ async function loadAllPresetsFromLocal() {
         console.error('从服务器加载预设失败:', error);
     }
     
-    // 然后加载本地存储的预设
-    const saved = localStorage.getItem('promptPresets');
-    if (saved) {
-        try {
-            const data = JSON.parse(saved);
-            if (data.presets) {
-                // 合并本地预设（本地优先）
-                Object.assign(promptManager.presets, data.presets);
-            }
-            if (data.currentPresetName) {
-                promptManager.currentPresetName = data.currentPresetName;
-            }
-        } catch (e) {
-            console.error('加载本地预设失败:', e);
-        }
-    }
-    
-    // 兼容旧版本：如果有旧的单一预设，迁移到新格式
-    const oldPreset = localStorage.getItem('promptPreset');
-    if (oldPreset && !saved) {
-        try {
-            const data = JSON.parse(oldPreset);
-            promptManager.presets['Default'] = data;
-            saveAllPresetsToLocal();
-            localStorage.removeItem('promptPreset'); // 清理旧数据
-        } catch (e) {
-            console.error('迁移旧预设失败:', e);
-        }
-    }
-    
     // 确保至少有一个默认预设
     if (Object.keys(promptManager.presets).length === 0) {
         promptManager.presets['Default'] = promptManager.createDefaultPreset();
+        // 保存默认预设到服务器
+        savePresetToServer(promptManager.presets['Default'], 'Default');
     }
+    
+    // 不在这里设置当前预设，等待从配置加载
 }
 
 // 获取当前的提示词顺序
@@ -1103,7 +1320,9 @@ window.importPresetFile = function(file) {
             // 保存预设
             promptManager.presets[presetName] = preset;
             promptManager.currentPresetName = presetName;
-            saveAllPresetsToLocal();
+            saveCurrentPresetToConfig();
+            // 直接保存到服务器
+            savePresetToServer(preset, presetName);
             
             // 如果提示词管理器开着，更新它
             const existingPanel = document.querySelector('.prompt-manager-panel');
@@ -1165,8 +1384,8 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     const preset = promptManager.preset;
     const prompts = preset.prompts || [];
     
-    // 获取启用的提示词
-    const enabledPrompts = prompts.filter(p => p.enabled !== false);
+    // 获取启用的提示词（marker类型始终启用）
+    const enabledPrompts = prompts.filter(p => p.marker || p.enabled !== false);
     
     // 准备消息数组
     let messages = [];
@@ -1366,8 +1585,29 @@ function escapeHtml(text) {
 }
 
 // 初始化
-window.initPromptManager = function() {
-    loadAllPresetsFromLocal();
+window.initPromptManager = async function() {
+    // 如果已经初始化过，直接返回
+    if (window.promptManagerInitialized) {
+        return;
+    }
+    
+    // 等待预设加载完成
+    await loadAllPresetsFromLocal();
+    
+    // 从服务器配置中恢复上次选择的预设
+    await loadCurrentPresetFromConfig();
+    
+    // 如果没有设置当前预设（配置中没有或预设不存在），设置默认值
+    const availablePresets = Object.keys(promptManager.presets);
+    if (!promptManager.currentPresetName && availablePresets.length > 0) {
+        // 优先使用Default，否则使用第一个
+        promptManager.currentPresetName = availablePresets.includes('Default') ? 'Default' : availablePresets[0];
+        // 保存到服务器配置
+        saveCurrentPresetToConfig();
+    }
+    
+    // 标记已初始化
+    window.promptManagerInitialized = true;
     
     // 如果当前预设没有prompts，初始化默认值
     if (!promptManager.preset.prompts || promptManager.preset.prompts.length === 0) {

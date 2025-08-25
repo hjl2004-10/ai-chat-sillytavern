@@ -178,7 +178,7 @@ window.saveNewCharacter = async function() {
             
             // 添加到本地列表
             characterList.push(character);
-            localStorage.setItem('characterList', JSON.stringify(characterList));
+            // 不使用localStorage
             
             // 关闭创建窗口
             document.querySelector('.modal').remove();
@@ -234,7 +234,7 @@ window.importCharacter = async function(file) {
                     
                     // 添加到本地列表
                     characterList.push(character);
-                    localStorage.setItem('characterList', JSON.stringify(characterList));
+                    // 不使用localStorage
                     
                     // 刷新显示
                     loadCharacterList();
@@ -266,15 +266,11 @@ async function loadCharacterList() {
             const data = await response.json();
             characterList = data.characters || [];
             
-            // 保存到本地
-            localStorage.setItem('characterList', JSON.stringify(characterList));
+            // 不使用localStorage，数据已在服务器
         }
     } catch (error) {
-        // 从本地加载
-        const saved = localStorage.getItem('characterList');
-        if (saved) {
-            characterList = JSON.parse(saved);
-        }
+        // 不从本地加载
+        console.error('加载角色列表失败:', error);
     }
     
     // 更新显示
@@ -335,7 +331,7 @@ window.selectCharacterByName = async function(characterName) {
             characterList = data.characters || [];
             window.characterList = characterList;
             // 保存到本地作为缓存备份
-            localStorage.setItem('characterList', JSON.stringify(characterList));
+            // 不使用localStorage
         } else {
             throw new Error('服务器响应错误');
         }
@@ -525,7 +521,7 @@ window.saveEditedCharacter = async function(index) {
         if (response.ok) {
             // 更新本地列表
             characterList[index] = character;
-            localStorage.setItem('characterList', JSON.stringify(characterList));
+            // 不使用localStorage
             
             // 关闭编辑窗口
             document.querySelector('.modal').remove();
@@ -602,7 +598,7 @@ window.deleteCharacter = async function(index) {
             
             // 从本地列表移除
             characterList.splice(index, 1);
-            localStorage.setItem('characterList', JSON.stringify(characterList));
+            // 不使用localStorage
             
             // 刷新显示
             loadCharacterList();

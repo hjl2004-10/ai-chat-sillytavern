@@ -365,9 +365,6 @@
 }
 
 .prompt-placeholder {
-    font-size: 13px;
-    color: #9ca3af;
-    font-style: italic;
     padding: 8px;
     background: #f9fafb;
     border-radius: 6px;
@@ -377,6 +374,122 @@
 .dark .prompt-placeholder {
     background: #1a1a1a;
     border-color: #333;
+}
+
+.placeholder-label {
+    color: #3b82f6;
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.dark .placeholder-label {
+    color: #60a5fa;
+}
+
+.placeholder-preview {
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
+    font-style: italic;
+    word-break: break-word;
+}
+
+.dark .placeholder-preview {
+    color: #9ca3af;
+}
+
+/* 预览统计信息 */
+.preview-stats {
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dark .preview-stats {
+    color: #60a5fa;
+}
+
+/* 预览内容 */
+.preview-content {
+    font-size: 12px;
+    color: #4b5563;
+    line-height: 1.5;
+    padding: 8px;
+    background: white;
+    border-radius: 4px;
+    margin-top: 6px;
+    max-height: 100px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.dark .preview-content {
+    background: #0a0a0a;
+    color: #9ca3af;
+}
+
+/* 预览提示 */
+.preview-hint {
+    font-size: 11px;
+    color: #9ca3af;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+.dark .preview-hint {
+    color: #6b7280;
+}
+
+/* Token统计面板 */
+.token-summary {
+    margin-top: 15px;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    color: white;
+}
+
+.dark .token-summary {
+    background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%);
+}
+
+.summary-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.summary-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 15px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 11px;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 16px;
+    font-weight: bold;
 }
 
 .prompt-settings {
@@ -447,6 +560,16 @@ input:checked + .toggle-slider {
 
 input:checked + .toggle-slider:before {
     transform: translateX(20px);
+}
+
+/* 禁用状态的开关（用于系统占位符） */
+input:disabled + .toggle-slider {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+input:disabled:checked + .toggle-slider {
+    background-color: #60a5fa;
 }
 
 /* 编辑和删除按钮 */

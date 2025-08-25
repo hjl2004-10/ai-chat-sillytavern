@@ -3,48 +3,40 @@ let worldBookEntries = [];  // 世界书条目列表（兼容旧版）
 let worldBooks = [];  // 多世界书列表
 let activeWorldBooks = [];  // 激活的世界书ID列表
 
-// 初始化世界书系统
-window.initWorldBookSystem = function() {
-    // 从localStorage加载世界书列表
-    const savedBooks = localStorage.getItem('worldBooks');
-    if (savedBooks) {
-        try {
-            worldBooks = JSON.parse(savedBooks);
-        } catch (e) {
-            worldBooks = [];
-        }
-    }
-    
-    // 加载激活状态
-    const activeIds = localStorage.getItem('activeWorldBooks');
-    if (activeIds) {
-        try {
-            activeWorldBooks = JSON.parse(activeIds);
-        } catch (e) {
-            activeWorldBooks = [];
-        }
-    }
-    
-    // 兼容旧版数据
-    const oldEntries = localStorage.getItem('worldBookEntries');
-    if (oldEntries && worldBooks.length === 0) {
-        try {
-            const entries = JSON.parse(oldEntries);
-            if (entries.length > 0) {
-                // 将旧条目转换为默认世界书
-                worldBooks.push({
-                    id: 'wb_default',
-                    name: '默认世界书',
-                    description: '从旧版本迁移的世界书',
-                    entries: entries,
-                    createDate: new Date().toISOString(),
-                    active: true
-                });
-                activeWorldBooks = ['wb_default'];
-                saveWorldBooks();
+// 从服务器加载世界书数据
+async function loadWorldBooksFromServer() {
+    try {
+        // 加载世界书列表
+        const response = await fetch(`${config.api_base}/world/list`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.worldBooks) {
+                worldBooks = data.worldBooks;
             }
-        } catch (e) {}
+        }
+        
+        // 加载激活状态
+        const activeResponse = await fetch(`${config.api_base}/world/get-active`);
+        if (activeResponse.ok) {
+            const activeData = await activeResponse.json();
+            if (activeData.activeWorldBooks) {
+                activeWorldBooks = activeData.activeWorldBooks;
+            }
+        }
+    } catch (error) {
+        console.error('从服务器加载世界书失败:', error);
     }
+}
+
+// 初始化世界书系统
+window.initWorldBookSystem = async function() {
+    // 清除本地缓存（开发阶段）
+    localStorage.removeItem('worldBooks');
+    localStorage.removeItem('worldBookEntries');
+    localStorage.removeItem('activeWorldBooks');
+    
+    // 从服务器加载世界书
+    await loadWorldBooksFromServer();
 };
 
 // 显示世界书面板
@@ -518,11 +510,8 @@ async function loadWorldBookList() {
                 worldBooks = data.worldBooks;
                 saveWorldBooks();
                 
-                // 恢复激活状态
-                const savedActive = localStorage.getItem('activeWorldBooks');
-                if (savedActive) {
-                    activeWorldBooks = JSON.parse(savedActive);
-                }
+                // 激活状态已经从服务器加载
+                // activeWorldBooks 在 loadActiveWorldBooks 中设置
                 
                 // 更新显示
                 updateWorldBooksDisplay();
@@ -536,12 +525,8 @@ async function loadWorldBookList() {
         }
     } catch (error) {
         console.error('加载世界书失败:', error);
-        // 从本地加载
-        const savedBooks = localStorage.getItem('worldBooks');
-        if (savedBooks) {
-            worldBooks = JSON.parse(savedBooks);
-            updateWorldBooksDisplay();
-        }
+        // 不再从本地加载，保持空列表
+        showToast('加载世界书失败，请检查服务器连接', 'error');
     }
     
     // 更新当前选中世界书的条目显示
@@ -1050,7 +1035,7 @@ window.exportAllWorldBooks = function() {
 
 // 保存世界书到本地存储
 function saveWorldBookToLocal() {
-    localStorage.setItem('worldBookEntries', JSON.stringify(worldBookEntries));
+    // 不使用localStorage
     // 同时更新当前世界书的条目
     const selector = document.getElementById('worldBookSelector');
     if (selector && selector.value) {
@@ -1066,16 +1051,34 @@ function saveWorldBookToLocal() {
 
 // 保存多世界书列表
 function saveWorldBooks() {
-    localStorage.setItem('worldBooks', JSON.stringify(worldBooks));
+    // 不使用localStorage
     // 保存每个世界书到服务器
     worldBooks.forEach(wb => {
         saveWorldBookToServer(wb);
     });
 }
 
-// 保存激活状态
-function saveActiveWorldBooks() {
-    localStorage.setItem('activeWorldBooks', JSON.stringify(activeWorldBooks));
+// 保存激活状态到服务器
+async function saveActiveWorldBooks() {
+    // 不使用localStorage，保存到服务器配置
+    try {
+        const response = await fetch(`${config.api_base}/world/save-active`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                activeWorldBooks: activeWorldBooks,
+                timestamp: new Date().toISOString()
+            })
+        });
+        
+        if (!response.ok) {
+            console.error('保存激活状态失败');
+        }
+    } catch (error) {
+        console.error('保存激活状态错误:', error);
+    }
 }
 
 // 保存世界书到服务器
@@ -1137,7 +1140,7 @@ async function saveWorldBookToServer(worldBook) {
                     name: worldBook.name,
                     description: worldBook.description,
                     createDate: worldBook.createDate,
-                    active: worldBook.active
+                    active: activeWorldBooks.includes(worldBook.id)
                 }
             };
         } else {
@@ -1149,7 +1152,7 @@ async function saveWorldBookToServer(worldBook) {
                     name: worldBook.name,
                     description: worldBook.description,
                     createDate: worldBook.createDate,
-                    active: worldBook.active
+                    active: activeWorldBooks.includes(worldBook.id)
                 }
             };
         }
@@ -1274,14 +1277,8 @@ window.injectWorldBookContent = function(messages) {
 // 初始化世界书
 window.initWorldBook = function() {
     // 从本地加载世界书
-    const saved = localStorage.getItem('worldBookEntries');
-    if (saved) {
-        try {
-            worldBookEntries = JSON.parse(saved);
-        } catch (e) {
-            worldBookEntries = [];
-        }
-    }
+    // 不从本地加载
+    worldBookEntries = [];
 };
 // 手动激活世界书（供调试使用）
 window.activateWorldBook = function(worldBookId) {

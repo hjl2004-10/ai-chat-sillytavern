@@ -82,16 +82,26 @@ def log_ai_request(endpoint, request_data, response_data=None, error=None):
     
     ai_logger.info("="*80 + "\n")
 
-# 配置存储
-config = {
-    "api_url": "",
-    "api_key": "",
-    "model": "",
-    "streaming": True,
-    "temperature": 0.7,
-    "max_tokens": 2048,
-    "top_p": 1.0
-}
+# 动态配置管理
+def load_config():
+    """从文件加载配置"""
+    config_file = 'data/config.json'
+    if os.path.exists(config_file):
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        # 如果配置文件不存在，返回空配置让前端管理
+        return {}
+
+def save_config(new_config):
+    """保存配置到文件"""
+    os.makedirs('data', exist_ok=True)
+    with open('data/config.json', 'w', encoding='utf-8') as f:
+        json.dump(new_config, f, ensure_ascii=False, indent=2)
+    return new_config
+
+# 初始加载配置
+config = load_config()
 
 # 聊天历史存储
 chats = {}
@@ -142,11 +152,18 @@ def handle_config():
     """处理配置的获取和更新"""
     global config
     if request.method == 'POST':
-        data = request.json
-        config.update(data)
+        # 前端发来完整的配置，直接替换
+        config = request.json
+        print(f"[服务器] 收到前端配置更新:")
+        print(f"  API URL: {config.get('api_url')}")
+        print(f"  Model: {config.get('model')}")
+        print(f"  Temperature: {config.get('temperature')}")
+        print(f"  frontend_max_history: {config.get('frontend_max_history')}")
+        print(f"  frontend_max_response: {config.get('frontend_max_response')}")
+        
         # 保存配置到文件
-        with open('data/config.json', 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+        save_config(config)
+        print("[服务器] 配置已保存到data/config.json")
         return jsonify({"status": "success", "config": config})
     else:
         return jsonify(config)
@@ -203,15 +220,18 @@ def chat_completions():
     if messages:
         context_window.extend(messages)
     
-    # 构建请求
+    # 构建请求（不发送max_tokens，让服务商自己决定）
     request_data = {
         "model": config.get('model', 'gpt-3.5-turbo'),
         "messages": messages,
-        "temperature": data.get('temperature', config.get('temperature', 0.7)),
-        "max_tokens": data.get('max_tokens', config.get('max_tokens', 2048)),
+        "temperature": data.get('temperature', config.get('temperature', 1.0)),
         "top_p": data.get('top_p', config.get('top_p', 1.0)),
         "stream": data.get('stream', config.get('streaming', True))
     }
+    
+    # 只有前端明确传入max_tokens时才添加（为了兼容性）
+    if 'max_tokens' in data:
+        request_data['max_tokens'] = data['max_tokens']
     
     # 不在这里记录请求，改为在实际响应时记录，避免重复
     
@@ -369,6 +389,42 @@ def save_world_book():
             "id": book_id,
             "message": "世界书已保存"
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/world/save-active', methods=['POST'])
+def save_active_world_books():
+    """保存激活的世界书状态"""
+    try:
+        data = request.json
+        active_books = data.get('activeWorldBooks', [])
+        
+        # 保存到配置文件
+        active_file = os.path.join('data', 'active_world_books.json')
+        with open(active_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                'activeWorldBooks': active_books,
+                'timestamp': data.get('timestamp', '')
+            }, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "message": "激活状态已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/world/get-active', methods=['GET'])
+def get_active_world_books():
+    """获取激活的世界书状态"""
+    try:
+        active_file = os.path.join('data', 'active_world_books.json')
+        if os.path.exists(active_file):
+            with open(active_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return jsonify(data)
+        else:
+            return jsonify({'activeWorldBooks': []})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

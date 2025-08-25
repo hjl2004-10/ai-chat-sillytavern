@@ -299,7 +299,7 @@
     color: #f3f4f6;
 }
 
-.edit-btn,
+.settings-edit-btn,
 .manage-btn {
     padding: 8px 16px;
     background: #3b82f6;
@@ -311,7 +311,7 @@
     transition: background 0.2s;
 }
 
-.edit-btn:hover,
+.settings-edit-btn:hover,
 .manage-btn:hover {
     background: #2563eb;
 }
@@ -644,7 +644,7 @@
         font-size: 13px;
     }
     
-    .edit-btn,
+    .settings-edit-btn,
     .manage-btn {
         width: 100%;
         padding: 6px 14px;
