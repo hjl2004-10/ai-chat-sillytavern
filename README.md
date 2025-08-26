@@ -49,6 +49,111 @@
 - ⚡ API 配置管理
 - 🎛️ 参数调节（温度、令牌数等）
 
+## 📱 安卓 Termux 部署
+
+### 完整安装步骤
+
+#### 步骤 1：准备工作
+```bash
+# 打开 Termux，给存储权限（第一次使用）
+termux-setup-storage
+```
+
+#### 步骤 2：退出 Ubuntu（如果你之前安装过）
+```bash
+# 如果你在 Ubuntu 环境中，先退出
+exit  # 可能需要输入两次
+```
+
+#### 步骤 3：更新系统
+```bash
+# 更新 Termux 包管理器
+pkg update && pkg upgrade -y
+```
+
+#### 步骤 4：安装必要软件
+```bash
+# 安装 Python、Git 和 SSL 支持
+pkg install -y openssl ca-certificates python git
+```
+
+#### 步骤 5：安装 Python 依赖包
+```bash
+# 尝试安装依赖
+pip install flask flask-cors requests
+```
+
+**⚠️ 如果步骤 5 出现 SSL 错误：**
+```bash
+# 修复 SSL 问题
+pkg reinstall openssl ca-certificates python
+python -m ensurepip --upgrade
+# 设置国内镜像源
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+# 重新安装依赖
+pip install flask flask-cors requests
+```
+
+#### 步骤 6：克隆项目
+```bash
+# 进入主目录并克隆
+cd ~
+git clone https://github.com/hjl2004-10/ai-chat-sillytavern.git
+cd ai-chat-sillytavern
+```
+
+#### 步骤 7：启动服务
+```bash
+# 运行服务器
+python server.py
+# 服务器将在 http://localhost:5000 启动
+```
+
+#### 步骤 8：访问应用
+打开手机浏览器，访问：`http://localhost:5000`
+
+### 常见问题解决
+
+**问题：SSL 证书错误**
+```bash
+pkg reinstall openssl ca-certificates python
+python -m ensurepip --upgrade
+```
+
+**问题：pip 安装超时**
+```bash
+# 使用国内镜像
+pip config set global.index-url https://pypi.doubanio.com/simple
+# 或阿里云镜像
+pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+```
+
+**问题：git clone 失败**
+```bash
+# 直接下载 zip 文件
+wget https://github.com/hjl2004-10/ai-chat-sillytavern/archive/refs/heads/main.zip
+unzip main.zip
+cd ai-chat-sillytavern-main
+```
+
+### 🔄 Ubuntu 环境切换
+
+**如何重新进入 Ubuntu（如果需要）**
+```bash
+# 进入 Ubuntu 环境
+proot-distro login ubuntu
+# 或者简写
+pd login ubuntu
+
+# 退出 Ubuntu 回到 Termux
+exit  # 可能需要输入两次
+```
+
+**完全卸载 Ubuntu（如果不再需要）**
+```bash
+pkg uninstall proot-distro
+```
+
 ## 🚀 快速开始
 
 ### 方式一：智能启动（推荐）

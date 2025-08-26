@@ -1,0 +1,87 @@
+# Termux 部署 AI Chat 完整步骤
+
+# === 准备工作 ===
+# 1. 确保你已经安装了 Termux
+# 2. 打开 Termux
+# 3. 给 Termux 存储权限（第一次使用）
+termux-setup-storage
+
+# === 完整安装步骤（直接在 Termux，不需要 Ubuntu）===
+
+# 步骤 1：更新 Termux 包管理器
+pkg update && pkg upgrade -y
+
+# 步骤 2：安装必要的系统包（包含 SSL 支持）
+pkg install -y openssl ca-certificates python git
+
+# 步骤 3：验证 Python 安装
+python --version
+# 应该显示 Python 3.x.x
+
+# 步骤 4：升级 pip 并配置镜像源（解决网络问题）
+python -m ensurepip --upgrade
+pip install --upgrade pip
+# 设置清华镜像源（国内用户推荐）
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 步骤 5：安装 Python 依赖包
+pip install flask flask-cors requests
+
+# 步骤 6：克隆项目代码
+cd ~
+git clone https://github.com/hjl2004-10/ai-chat-sillytavern.git
+# 如果 git clone 失败，可以手动下载 zip 文件解压
+
+# 步骤 7：进入项目目录
+cd ai-chat-sillytavern
+
+# 步骤 8：运行服务器
+python server.py
+# 服务器将在 http://localhost:5000 启动
+
+# 步骤 9：在浏览器访问
+# 打开手机浏览器，访问：http://localhost:5000
+
+# === 常见问题解决 ===
+
+# 问题 1：SSL 证书错误
+# 错误信息："SSL module is not available"
+# 解决方法：
+pkg reinstall openssl ca-certificates python
+python -m ensurepip --upgrade
+
+# 问题 2：pip 安装超时
+# 解决方法：使用国内镜像
+pip config set global.index-url https://pypi.doubanio.com/simple
+# 或者
+pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+
+# 问题 3：git clone 失败
+# 解决方法：使用镜像或手动下载
+# 方法 1：使用 gitee 镜像（如果有）
+# 方法 2：直接下载 zip 文件
+wget https://github.com/hjl2004-10/ai-chat-sillytavern/archive/refs/heads/main.zip
+unzip main.zip
+cd ai-chat-sillytavern-main
+
+# 问题 4：端口被占用
+# 修改 server.py 中的端口号，例如改为 8080
+# 然后访问 http://localhost:8080
+
+# === 如何停止和重启服务 ===
+# 停止服务：按 Ctrl + C
+# 重新启动：
+cd ~/ai-chat-sillytavern
+python server.py
+
+# === Ubuntu 相关（备用方案）===
+# 如果你已经安装了 Ubuntu 环境：
+# 进入 Ubuntu：
+proot-distro login ubuntu
+# 退出 Ubuntu：
+exit
+# 卸载 Ubuntu：
+pkg uninstall proot-distro
+# 重新安装 Ubuntu：
+pkg install proot-distro
+proot-distro install ubuntu
