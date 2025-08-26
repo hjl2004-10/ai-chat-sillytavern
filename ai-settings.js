@@ -297,6 +297,25 @@ window.saveAISettings = async function() {
             console.log('服务器返回的config:', savedData.config);
             console.log('确认保存的frontend_max_history:', savedData.config.frontend_max_history);
             console.log('确认保存的frontend_max_response:', savedData.config.frontend_max_response);
+            
+            // 刷新模型列表（如果API配置改变了）
+            console.log('[saveAISettings] 准备刷新模型列表...');
+            if (typeof loadModels === 'function') {
+                // 清空缓存的模型列表
+                if (window.cachedModelList) {
+                    window.cachedModelList = null;
+                }
+                
+                // 重新加载模型列表
+                await loadModels();
+                console.log('[saveAISettings] 模型列表已刷新');
+                
+                // 如果模型选择器打开了，也更新一下显示
+                const modelSpan = document.querySelector('.model-selector span');
+                if (modelSpan && window.config.model) {
+                    modelSpan.textContent = window.config.model;
+                }
+            }
         } else {
             console.error('保存失败，状态码:', response.status);
             showToast('保存设置失败', 'error');

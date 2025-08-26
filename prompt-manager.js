@@ -1,5 +1,5 @@
 // 提示词管理模块 - SillyTavern兼容格式（支持多预设）
-let promptManager = {
+window.promptManager = {
     // 所有预设列表
     presets: {},
     
@@ -129,6 +129,9 @@ let promptManager = {
         };
     }
 };
+
+// 创建局部引用，方便在本文件中使用
+const promptManager = window.promptManager;
 
 // 默认的提示词顺序
 const defaultPromptOrder = [
@@ -349,20 +352,22 @@ function getMarkerPreview(identifier) {
             return `<div class="preview-stats">💬 对话示例 (无示例)</div>`;
             
         case 'chatHistory':
-            if (window.contextMessages && window.contextMessages.length > 0) {
+            // 使用全局的contextMessages（当前对话的消息）
+            const currentMessages = window.contextMessages || [];
+            if (currentMessages.length > 0) {
                 // 计算聊天历史的总字数和token
-                fullContent = window.contextMessages.map(m => `${m.role}: ${m.content}`).join('\n');
+                fullContent = currentMessages.map(m => `${m.role}: ${m.content}`).join('\n');
                 charCount = fullContent.length;
                 tokenEstimate = estimateTokens(fullContent);
                 // 显示最近的几条消息
-                const recentMessages = window.contextMessages.slice(-3);
+                const recentMessages = currentMessages.slice(-3);
                 previewText = recentMessages.map(m => 
                     `${m.role}: ${m.content.substring(0, 50)}${m.content.length > 50 ? '...' : ''}`
                 ).join('\n');
-                return `<div class="preview-stats">📜 聊天历史 (${window.contextMessages.length}条 | ${charCount}字 | ~${tokenEstimate}tokens)</div>
+                return `<div class="preview-stats">📜 当前对话 (${currentMessages.length}条 | ${charCount}字 | ~${tokenEstimate}tokens)</div>
                         <div class="preview-content">${escapeHtml(previewText)}</div>`;
             }
-            return `<div class="preview-stats">📜 聊天历史 (无消息)</div>`;
+            return `<div class="preview-stats">📜 当前对话 (暂无消息)</div>`;
             
         default:
             return `<div class="preview-stats">📌 ${identifier} (系统占位符)</div>`;
@@ -525,6 +530,16 @@ function initDragAndDrop() {
     });
 }
 
+// 刷新提示词管理器（当对话切换时调用）
+window.refreshPromptManager = function() {
+    // 如果面板打开，刷新显示
+    if (document.querySelector('.prompt-manager-panel')) {
+        console.log('[提示词管理] 刷新显示 - 对话已切换');
+        loadPromptList();  // 重新加载列表，更新预览
+        updateTokenSummary();  // 更新统计
+    }
+};
+
 // 更新token统计
 function updateTokenSummary() {
     const summaryEl = document.getElementById('token-summary');
@@ -546,10 +561,22 @@ function updateTokenSummary() {
                     window.contextMessages,
                     { persona: window.userPersonaManager?.getCurrentPersona()?.description }
                 );
-                if (markerContent && typeof markerContent === 'string') {
-                    const tokens = estimateTokens(markerContent);
-                    totalTokens += tokens;
-                    totalChars += markerContent.length;
+                
+                if (markerContent) {
+                    // 特殊处理chatHistory（返回数组）
+                    if (prompt.identifier === 'chatHistory' && Array.isArray(markerContent)) {
+                        if (markerContent.length > 0) {
+                            const chatText = markerContent.map(m => `${m.role}: ${m.content}`).join('\n');
+                            const tokens = estimateTokens(chatText);
+                            totalTokens += tokens;
+                            totalChars += chatText.length;
+                        }
+                    } else if (typeof markerContent === 'string') {
+                        // 其他marker内容（字符串）
+                        const tokens = estimateTokens(markerContent);
+                        totalTokens += tokens;
+                        totalChars += markerContent.length;
+                    }
                 }
             } else if (prompt.content) {
                 // 对于普通提示词
@@ -623,6 +650,9 @@ window.togglePrompt = function(identifier, enabled) {
         if (item) {
             item.classList.toggle('disabled', !enabled);
         }
+        
+        // 动态更新字数统计
+        updateTokenSummary();
     }
 };
 
@@ -696,6 +726,10 @@ window.savePromptEdit = function(identifier) {
     
     savePresetToLocal();
     loadPromptList();
+    
+    // 动态更新字数统计
+    updateTokenSummary();
+    
     document.querySelector('.modal').remove();
     
     showToast('提示词已更新', 'success');
@@ -783,6 +817,10 @@ window.saveNewPrompt = function() {
     
     savePresetToLocal();
     loadPromptList();
+    
+    // 动态更新字数统计
+    updateTokenSummary();
+    
     document.querySelector('.modal').remove();
     
     showToast('自定义提示词已创建', 'success');
@@ -805,6 +843,9 @@ window.deletePrompt = function(identifier) {
         
         savePresetToLocal();
         loadPromptList();
+        
+        // 动态更新字数统计
+        updateTokenSummary();
         
         showToast('提示词已删除', 'success');
     }
@@ -1286,6 +1327,10 @@ window.importPresetFile = function(file) {
         try {
             const preset = JSON.parse(e.target.result);
             
+            console.log('[预设导入] 原始预设数据:', preset);
+            console.log('[预设导入] prompts数量:', preset.prompts ? preset.prompts.length : 0);
+            console.log('[预设导入] prompt_order:', preset.prompt_order ? preset.prompt_order.length : 0);
+            
             // 转换prompt_order中的角色ID为identifier
             if (preset.prompt_order) {
                 preset.prompt_order = preset.prompt_order.map(item => {
@@ -1320,6 +1365,10 @@ window.importPresetFile = function(file) {
             // 保存预设
             promptManager.presets[presetName] = preset;
             promptManager.currentPresetName = presetName;
+            
+            console.log('[预设导入] 保存预设:', presetName);
+            console.log('[预设导入] 当前预设内容:', promptManager.preset);
+            
             saveCurrentPresetToConfig();
             // 直接保存到服务器
             savePresetToServer(preset, presetName);
@@ -1384,16 +1433,77 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     const preset = promptManager.preset;
     const prompts = preset.prompts || [];
     
+    console.log('[预设管理] 开始构建buildPromptMessages');
+    console.log('[预设管理] 总提示词数:', prompts.length);
+    console.log('[预设管理] prompts内容:', prompts);
+    
     // 获取启用的提示词（marker类型始终启用）
-    const enabledPrompts = prompts.filter(p => p.marker || p.enabled !== false);
+    const enabledPrompts = prompts.filter(p => {
+        // marker类型始终启用
+        if (p.marker) return true;
+        // 其他类型检查enabled状态
+        return p.enabled !== false;
+    });
+    
+    console.log('[预设管理] 启用的提示词数:', enabledPrompts.length);
+    console.log('[预设管理] 启用的提示词:', enabledPrompts.map(p => ({
+        identifier: p.identifier,
+        name: p.name,
+        enabled: p.enabled,
+        marker: p.marker,
+        hasContent: !!p.content
+    })));
+    
+    // 按照prompt_order排序（如果存在）
+    let orderedPrompts = enabledPrompts;
+    if (preset.prompt_order && preset.prompt_order.length > 0) {
+        console.log('[预设管理] 使用prompt_order排序');
+        
+        // 处理prompt_order - 可能是数组或嵌套结构
+        let orderList = [];
+        if (Array.isArray(preset.prompt_order[0]) || (preset.prompt_order[0] && preset.prompt_order[0].order)) {
+            // SillyTavern格式: [{character_id: xxx, order: [...]}]
+            const orderData = preset.prompt_order.find(o => o.character_id === 100001 || o.order);
+            orderList = orderData ? (orderData.order || orderData) : [];
+        } else {
+            // 直接数组格式
+            orderList = preset.prompt_order;
+        }
+        
+        console.log('[预设管理] orderList:', orderList.slice(0, 5)); // 只显示前5个
+        
+        // 按照顺序排列
+        const orderedIds = orderList.map(item => {
+            if (typeof item === 'string') return item;
+            if (item.identifier) return item.identifier;
+            return null;
+        }).filter(id => id);
+        
+        // 创建排序后的数组
+        const sorted = [];
+        orderedIds.forEach(id => {
+            const prompt = enabledPrompts.find(p => p.identifier === id);
+            if (prompt) sorted.push(prompt);
+        });
+        
+        // 添加未在顺序中的提示词
+        enabledPrompts.forEach(p => {
+            if (!orderedIds.includes(p.identifier)) {
+                sorted.push(p);
+            }
+        });
+        
+        orderedPrompts = sorted;
+        console.log('[预设管理] 排序后的提示词数:', orderedPrompts.length);
+    }
     
     // 准备消息数组
     let messages = [];
     let systemPrompts = [];
     let injections = [];
     
-    // 处理每个提示词
-    enabledPrompts.forEach(prompt => {
+    // 处理每个提示词（使用排序后的数组）
+    orderedPrompts.forEach(prompt => {
         // 处理marker占位符
         if (prompt.marker) {
             const markerContent = getMarkerContent(prompt.identifier, character, worldInfo, chatHistory, userSettings);
@@ -1412,27 +1522,35 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
                 }
             }
         } else if (prompt.content) {
-            // 普通提示词，进行变量替换
+            // 普通提示词（包括UUID标识符的自定义提示词），进行变量替换
             let content = replaceVariables(prompt.content, character, userSettings);
             
+            console.log(`[预设管理] 处理提示词: ${prompt.name || prompt.identifier}`);
+            console.log(`[预设管理] 内容长度: ${content.length}, injection_position: ${prompt.injection_position}, injection_depth: ${prompt.injection_depth}`);
+            
             // 检查是否有注入配置
-            if (prompt.injection_position !== undefined || prompt.injection_depth !== undefined) {
+            if (prompt.injection_position !== undefined && prompt.injection_position !== null) {
                 injections.push({
                     identifier: prompt.identifier,
+                    name: prompt.name,
                     role: prompt.role || 'system',
                     content: content,
-                    injection_position: prompt.injection_position || 0,
+                    injection_position: prompt.injection_position,
                     injection_depth: prompt.injection_depth || 0
                 });
             } else {
                 // 普通系统提示词
                 systemPrompts.push({
                     identifier: prompt.identifier,
+                    name: prompt.name,
                     content: content
                 });
             }
         }
     });
+    
+    console.log('[预设管理] 系统提示词数:', systemPrompts.length);
+    console.log('[预设管理] 注入提示词数:', injections.length);
     
     // 构建最终消息数组
     let finalMessages = [];
@@ -1441,6 +1559,8 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     if (systemPrompts.length > 0) {
         const systemContent = systemPrompts.map(p => p.content).filter(c => c).join('\n\n');
         if (systemContent) {
+            console.log('[预设管理] 系统提示词合并内容长度:', systemContent.length);
+            console.log('[预设管理] 系统提示词前200字符:', systemContent.substring(0, 200));
             finalMessages.push({
                 role: 'system',
                 content: systemContent
@@ -1454,9 +1574,17 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     }
     
     // 3. 处理注入（injection）
+    console.log('[预设管理] 开始处理注入, 数量:', injections.length);
     injections.forEach(injection => {
+        console.log(`[预设管理] 应用注入: ${injection.name || injection.identifier}, position: ${injection.injection_position}, depth: ${injection.injection_depth}`);
         applyInjection(finalMessages, injection);
     });
+    
+    console.log('[预设管理] 最终消息数:', finalMessages.length);
+    console.log('[预设管理] 最终消息结构:', finalMessages.map(m => ({
+        role: m.role,
+        contentLength: m.content ? m.content.length : 0
+    })));
     
     return finalMessages;
 };

@@ -89,6 +89,14 @@ body.dark {
     padding: 8px;
     flex: 1;
     overflow-y: auto;
+    /* 隐藏滚动条 */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE和Edge */
+}
+
+/* Webkit浏览器（Chrome、Safari等）隐藏滚动条 */
+.sidebar-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .sidebar-nav-item {
@@ -991,6 +999,7 @@ body.dark {
     padding: 0 24px;
     display: flex;
     gap: 24px;
+    position: relative;
 }
 
 @keyframes fadeIn {
@@ -1034,6 +1043,22 @@ body.dark {
     word-wrap: break-word;
     color: #2d2d2d;
     min-width: 0;
+}
+
+/* 停止模式的发送按钮 */
+.send-button.stop-mode {
+    background-color: #000;
+    color: white;
+}
+
+.send-button.stop-mode:hover {
+    background-color: #333;
+    transform: scale(1.05);
+}
+
+.send-button.stop-mode svg {
+    width: 14px;
+    height: 14px;
 }
 
 .dark .message-content {
@@ -1537,6 +1562,14 @@ body.dark {
     gap: 8px;
     max-height: 400px;
     overflow-y: auto;
+    /* 隐藏滚动条 */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE和Edge */
+}
+
+/* Webkit浏览器（Chrome、Safari等）隐藏滚动条 */
+.history-list::-webkit-scrollbar {
+    display: none;
 }
 
 .history-item {

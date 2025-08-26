@@ -49,7 +49,7 @@ ai_logger.addHandler(file_handler)
 ai_logger.addHandler(console_handler)
 
 def log_ai_request(endpoint, request_data, response_data=None, error=None):
-    """记录AI请求和响应的完整信息"""
+    """记录AI请求和响应的完整信息（最新的在最上面）"""
     log_entry = {
         'timestamp': datetime.now().isoformat(),
         'endpoint': endpoint,
@@ -58,29 +58,64 @@ def log_ai_request(endpoint, request_data, response_data=None, error=None):
         'error': str(error) if error else None
     }
     
-    # 格式化日志输出
-    ai_logger.info("="*80)
-    ai_logger.info(f"AI请求 - 端点: {endpoint}")
-    ai_logger.info(f"时间: {log_entry['timestamp']}")
-    ai_logger.info("-"*40)
-    ai_logger.info("请求体:")
-    ai_logger.info(json.dumps(request_data, ensure_ascii=False, indent=2))
+    # 构建日志内容
+    log_lines = []
+    log_lines.append("\n" + "="*80)
+    log_lines.append(f"AI请求 - 端点: {endpoint}")
+    log_lines.append(f"时间: {log_entry['timestamp']}")
+    log_lines.append("-"*40)
+    log_lines.append("请求体:")
+    log_lines.append(json.dumps(request_data, ensure_ascii=False, indent=2))
     
     if response_data:
-        ai_logger.info("-"*40)
-        ai_logger.info("响应体:")
+        log_lines.append("-"*40)
+        log_lines.append("响应体:")
         # 如果响应太长，可以截断
         response_str = json.dumps(response_data, ensure_ascii=False, indent=2)
         if len(response_str) > 5000:  # 如果响应超过5000字符
-            ai_logger.info(response_str[:5000] + "\n... [响应已截断]")
+            log_lines.append(response_str[:5000] + "\n... [响应已截断]")
         else:
-            ai_logger.info(response_str)
+            log_lines.append(response_str)
     
     if error:
-        ai_logger.error("-"*40)
-        ai_logger.error(f"错误: {error}")
+        log_lines.append("-"*40)
+        log_lines.append(f"错误: {error}")
     
-    ai_logger.info("="*80 + "\n")
+    log_lines.append("="*80)
+    
+    # 将新日志内容写入到文件开头
+    log_file_path = 'logs/ai_chat.log'
+    new_content = "\n".join(log_lines) + "\n\n"
+    
+    # 读取现有内容
+    existing_content = ""
+    if os.path.exists(log_file_path):
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                existing_content = f.read()
+        except:
+            existing_content = ""
+    
+    # 将新内容写在最前面
+    try:
+        with open(log_file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content + existing_content)
+            
+        # 限制文件大小，如果超过10MB，只保留最近的5MB
+        if len(new_content + existing_content) > 10 * 1024 * 1024:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                content = f.read(5 * 1024 * 1024)  # 只保留前5MB
+            with open(log_file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+    except Exception as e:
+        print(f"写入日志文件失败: {e}")
+    
+    # 同时输出到控制台（保持原有功能）
+    for line in log_lines:
+        if error and "错误" in line:
+            ai_logger.error(line)
+        else:
+            ai_logger.info(line)
 
 # 动态配置管理
 def load_config():
@@ -214,6 +249,7 @@ def get_models():
 def chat_completions():
     """处理聊天完成请求（OpenAI兼容格式）"""
     data = request.json
+    original_request = data.copy()  # 保存原始请求用于日志记录
     messages = data.get('messages', [])
     
     # 添加到上下文窗口
@@ -281,10 +317,10 @@ def chat_completions():
                         }],
                         "stream": True
                     }
-                    log_ai_request(f"{config['api_url']}/chat/completions", request_data, complete_response)
+                    log_ai_request(f"{config['api_url']}/chat/completions", original_request, complete_response)
                     
                 except Exception as e:
-                    log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=e)
+                    log_ai_request(f"{config['api_url']}/chat/completions", original_request, error=e)
                     raise
             
             return Response(
@@ -304,7 +340,7 @@ def chat_completions():
                 result = response.json()
                 
                 # 记录成功的响应
-                log_ai_request(f"{config['api_url']}/chat/completions", request_data, result)
+                log_ai_request(f"{config['api_url']}/chat/completions", original_request, result)
                 
                 # 添加响应到上下文窗口
                 if 'choices' in result and result['choices']:
@@ -318,12 +354,12 @@ def chat_completions():
             else:
                 # 记录错误响应
                 error_msg = f"Status: {response.status_code}, Body: {response.text}"
-                log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=error_msg)
+                log_ai_request(f"{config['api_url']}/chat/completions", original_request, error=error_msg)
                 return jsonify({"error": response.text}), response.status_code
                 
     except Exception as e:
         # 记录异常
-        log_ai_request(f"{config['api_url']}/chat/completions", request_data, error=e)
+        log_ai_request(f"{config['api_url']}/chat/completions", original_request, error=e)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/context', methods=['GET'])

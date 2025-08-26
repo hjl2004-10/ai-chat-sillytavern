@@ -19,10 +19,17 @@ window.config = {
 const config = window.config;
 
 // 缓存的模型列表
-let cachedModelList = null;
+window.cachedModelList = null;
+let cachedModelList = window.cachedModelList;  // 创建局部引用
 
-// 上下文管理
-let contextMessages = [];
+// 流式响应中止控制器
+let currentAbortController = null;
+
+// 发送状态管理
+let isSending = false;
+
+// 上下文管理 - 暴露到全局供其他模块使用
+window.contextMessages = [];
 let currentChatId = null;
 let currentChatTitle = '新对话';
 
@@ -343,7 +350,7 @@ async function saveConfig() {
 }
 
 // 加载模型列表
-async function loadModels() {
+window.loadModels = async function loadModels() {
     // 如果已经有配置的API，才尝试获取模型列表
     if (!config.api_key || !config.api_url) {
         console.log('等待API配置...');
@@ -356,7 +363,8 @@ async function loadModels() {
             const data = await response.json();
             if (data.models && data.models.length > 0) {
                 // 缓存模型列表
-                cachedModelList = data.models;
+                window.cachedModelList = data.models;
+                cachedModelList = window.cachedModelList;
                 console.log('已缓存模型列表:', cachedModelList);
                 
                 // 如果当前没有选中的模型，或者选中的模型不在列表中
@@ -414,7 +422,8 @@ async function showModelSelector() {
             
             // 缓存模型列表
             models = data.models;
-            cachedModelList = models;
+            window.cachedModelList = models;
+            cachedModelList = window.cachedModelList;
             console.log('获取并缓存模型列表:', cachedModelList);
         } catch (error) {
             console.error('获取模型列表失败:', error);
@@ -504,7 +513,8 @@ window.saveSettingsFromModal = function() {
     
     // 如果API地址或密钥变了，清空缓存并重新加载模型列表
     if (oldApiUrl !== config.api_url || oldApiKey !== config.api_key) {
-        cachedModelList = null;  // 清空缓存
+        window.cachedModelList = null;  // 清空缓存
+        cachedModelList = null;
         loadModels();
     }
     
@@ -513,6 +523,13 @@ window.saveSettingsFromModal = function() {
 
 // 发送消息
 async function sendMessage() {
+    // 如果正在发送中，执行停止操作
+    if (isSending && currentAbortController) {
+        currentAbortController.abort();
+        console.log('[用户中止] 已停止AI生成');
+        return;
+    }
+    
     const message = chatInput.value.trim();
     if (!message) return;
     
@@ -530,11 +547,14 @@ async function sendMessage() {
     addMessageToChat('user', message);
     
     // 添加到上下文
-    contextMessages.push({ role: 'user', content: message });
+    window.contextMessages.push({ role: 'user', content: message });
+    
+    // 立即滚动到底部
+    scrollToBottom();
     
     // 如果是新对话的第一条消息，立即添加到历史列表
-    if (contextMessages.length === 1 || 
-        (contextMessages.length === 2 && contextMessages[0].role === 'assistant')) {
+    if (window.contextMessages.length === 1 || 
+        (window.contextMessages.length === 2 && window.contextMessages[0].role === 'assistant')) {
         // 确保新对话在历史列表中
         if (!chatHistory.find(chat => chat.chatId === currentChatId || chat.name === currentChatId)) {
             const charName = window.currentCharacter ? window.currentCharacter.name : 'default';
@@ -558,7 +578,7 @@ async function sendMessage() {
     updateHistoryDisplay();
     
     // 构建完整的提示词和消息
-    let finalMessages = contextMessages;
+    let finalMessages = window.contextMessages;
     
     // 如果有提示词管理器，使用它来构建消息
     if (typeof buildPromptMessages === 'function') {
@@ -580,7 +600,7 @@ async function sendMessage() {
         if (typeof checkWorldBookTriggers === 'function') {
             console.log('[世界书] 检查触发条件...');
             console.log('[世界书] 当前激活的世界书:', activeWorldBooks);
-            const triggered = checkWorldBookTriggers(contextMessages);
+            const triggered = checkWorldBookTriggers(window.contextMessages);
             console.log('[世界书] 触发的条目:', triggered);
             if (triggered.length > 0) {
                 worldInfo = {
@@ -592,11 +612,20 @@ async function sendMessage() {
         }
         
         // 使用提示词管理器构建消息（新的对话补全格式）
-        finalMessages = buildPromptMessages(contextMessages, character, worldInfo, userSettings);
+        console.log('[提示词管理] 当前预设:', window.promptManager?.currentPresetName);
+        console.log('[提示词管理] 预设内容:', window.promptManager?.preset);
+        
+        finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings);
+        
+        // 输出调试信息
+        console.log('[提示词管理] 最终消息数:', finalMessages.length);
+        if (finalMessages[0] && finalMessages[0].role === 'system') {
+            console.log('[提示词管理] 系统提示词内容:', finalMessages[0].content.substring(0, 200));
+        }
     } else {
         // 兼容旧的世界书注入方式
         if (typeof injectWorldBookContent === 'function') {
-            finalMessages = injectWorldBookContent(contextMessages);
+            finalMessages = injectWorldBookContent(window.contextMessages);
         }
     }
     
@@ -629,6 +658,9 @@ async function sendMessage() {
     // 显示加载状态
     const loadingDiv = addMessageToChat('assistant', '', true);
     
+    // 加载框出现时也要滚动
+    scrollToBottom();
+    
     try {
         // 准备请求数据（不发送max_tokens，让服务商自由发挥）
         const requestData = {
@@ -647,6 +679,36 @@ async function sendMessage() {
             typical_p: config.typical_p
         };
         
+        // 创建中止控制器
+        const abortController = new AbortController();
+        currentAbortController = abortController;
+        
+        // 设置发送状态，切换按钮
+        isSending = true;
+        updateSendButton(true);
+        
+        // 智能滚动控制
+        let autoScroll = true;
+        // 优先使用messages-container，如果不存在则使用chat-container
+        const scrollContainer = document.querySelector('.messages-container') || document.querySelector('.chat-container');
+        
+        // 检查是否在底部（允许10px的误差）
+        const isAtBottom = () => {
+            if (!scrollContainer) return true;
+            return scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 10;
+        };
+        
+        // 监听用户滚动
+        const scrollHandler = () => {
+            // 如果用户滚动到不是底部，停止自动滚动
+            autoScroll = isAtBottom();
+            console.log('[智能滚动]', autoScroll ? '保持自动滚动' : '用户已手动滚动，停止自动滚动');
+        };
+        
+        if (scrollContainer) {
+            scrollContainer.addEventListener('scroll', scrollHandler);
+        }
+        
         if (config.streaming) {
             // 流式请求
             const response = await fetch(`${config.api_base}/chat/completions`, {
@@ -654,7 +716,8 @@ async function sendMessage() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestData)
+                body: JSON.stringify(requestData),
+                signal: abortController.signal
             });
             
             const reader = response.body.getReader();
@@ -667,9 +730,18 @@ async function sendMessage() {
             const messageInner = messageDiv.querySelector('.message-inner');
             const contentDiv = messageInner.querySelector('.message-content');
             
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            // AI消息框出现时立即滚动 - 重新获取容器因为可能刚创建
+            const currentScrollContainer = document.querySelector('.messages-container') || document.querySelector('.chat-container');
+            if (currentScrollContainer) {
+                currentScrollContainer.scrollTop = currentScrollContainer.scrollHeight;
+            }
+            
+            // 不再需要单独的停止按钮，因为发送按钮已经切换为停止功能
+            
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
                 
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
@@ -694,19 +766,38 @@ async function sendMessage() {
                                 } else {
                                     contentDiv.textContent = assistantMessage;
                                 }
-                                // 自动滚动到底部
-                                messageDiv.scrollIntoView({ behavior: 'smooth' });
+                                // 智能自动滚动 - 只在用户没有手动滚动时才自动滚到底部
+                                if (autoScroll) {
+                                    scrollToBottom();
+                                }
                             }
                         } catch (e) {
                             // 忽略解析错误
                         }
                     }
                 }
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    contentDiv.textContent = assistantMessage + '\n\n[生成已被用户中止]';
+                } else {
+                    throw error;
+                }
+            } finally {
+                // 重置发送状态
+                isSending = false;
+                currentAbortController = null;
+                updateSendButton(false);
+                
+                // 清理滚动监听器
+                if (scrollContainer) {
+                    scrollContainer.removeEventListener('scroll', scrollHandler);
+                }
             }
             
             // 添加到上下文
             if (assistantMessage) {
-                contextMessages.push({ role: 'assistant', content: assistantMessage });
+                window.contextMessages.push({ role: 'assistant', content: assistantMessage });
                 updateHistoryDisplay();
             }
         } else {
@@ -735,16 +826,21 @@ async function sendMessage() {
                 }
                 
                 // 添加到上下文
-                contextMessages.push({ role: 'assistant', content: assistantMessage });
+                window.contextMessages.push({ role: 'assistant', content: assistantMessage });
                 updateHistoryDisplay();
             }
+            
+            // 重置发送状态
+            isSending = false;
+            currentAbortController = null;
+            updateSendButton(false);
         }
         
         // 自动保存聊天
         await autoSaveChat();
         
         // 确保历史面板更新（特别是第一条消息时）
-        if (contextMessages.length <= 2) { // user message + assistant response
+        if (window.contextMessages.length <= 2) { // user message + assistant response
             updateHistoryDisplay();
         }
         
@@ -752,6 +848,40 @@ async function sendMessage() {
         console.error('发送消息失败:', error);
         loadingDiv.remove();
         showToast('发送消息失败: ' + error.message, 'error');
+    } finally {
+        // 确保重置状态
+        isSending = false;
+        currentAbortController = null;
+        updateSendButton(false);
+    }
+}
+
+// 更新发送按钮状态
+function updateSendButton(isSending) {
+    const sendButton = document.querySelector('.send-button');
+    if (!sendButton) return;
+    
+    if (isSending) {
+        // 切换为停止按钮 - 白色正方形
+        sendButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24">
+                <rect x="8" y="8" width="8" height="8" fill="white"/>
+            </svg>
+        `;
+        sendButton.classList.add('stop-mode');
+        sendButton.title = '停止生成';
+    } else {
+        // 恢复为发送按钮
+        sendButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 4L12 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path>
+                <path d="M8 9L8 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path>
+                <path d="M20 10L20 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path>
+                <path d="M4 10L4 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"></path>
+            </svg>
+        `;
+        sendButton.classList.remove('stop-mode');
+        sendButton.title = '发送消息';
     }
 }
 
@@ -793,10 +923,10 @@ function addMessageToChat(role, content, isLoading = false) {
             </div>
         `;
     } else {
-        // 查找这条消息在contextMessages中的正确索引
+        // 查找这条消息在window.contextMessages中的正确索引
         let messageIndex = -1;
-        for (let i = contextMessages.length - 1; i >= 0; i--) {
-            if (contextMessages[i].content === content && contextMessages[i].role === role) {
+        for (let i = window.contextMessages.length - 1; i >= 0; i--) {
+            if (window.contextMessages[i].content === content && window.contextMessages[i].role === role) {
                 messageIndex = i;
                 break;
             }
@@ -804,7 +934,7 @@ function addMessageToChat(role, content, isLoading = false) {
         
         // 如果找不到（比如新消息），使用length-1（假设消息刚被添加）
         if (messageIndex === -1) {
-            messageIndex = Math.max(0, contextMessages.length - 1);
+            messageIndex = Math.max(0, window.contextMessages.length - 1);
         }
         
         messageInner.innerHTML = `
@@ -837,10 +967,12 @@ function addMessageToChat(role, content, isLoading = false) {
     
     messageDiv.appendChild(messageInner);
     messagesContainer.appendChild(messageDiv);
-    messageDiv.scrollIntoView({ behavior: 'smooth' });
+    
+    // 滚动到聊天容器底部
+    scrollToBottom();
     
     // 如果是用户的第一条消息，生成对话标题
-    if (role === 'user' && contextMessages.length === 0 && content) {
+    if (role === 'user' && window.contextMessages.length === 0 && content) {
         currentChatTitle = content.substring(0, 30) + (content.length > 30 ? '...' : '');
         // TODO: 后期可以调用AI生成更好的标题
     }
@@ -851,12 +983,12 @@ function addMessageToChat(role, content, isLoading = false) {
 // 开始新对话
 function startNewChat() {
     // 保存当前对话（如果有内容）
-    if (contextMessages.length > 0) {
+    if (window.contextMessages.length > 0) {
         saveChatToHistory();
     }
     
     // 清空当前对话
-    contextMessages = [];
+    window.contextMessages = [];
     currentChatId = null;
     currentChatTitle = '新对话';
     
@@ -864,7 +996,7 @@ function startNewChat() {
     if (window.currentCharacter) {
         // 添加角色的第一条消息（如果有的话）
         if (window.currentCharacter.first_mes) {
-            contextMessages.push({
+            window.contextMessages.push({
                 role: 'assistant',
                 content: window.currentCharacter.first_mes
             });
@@ -884,11 +1016,16 @@ function startNewChat() {
     updateChatHeader();
     
     // 如果有角色的初始消息，显示它
-    if (contextMessages.length > 0) {
+    if (window.contextMessages.length > 0) {
         // 显示角色的初始消息
-        contextMessages.forEach(msg => {
+        window.contextMessages.forEach(msg => {
             addMessageToChat(msg.role, msg.content);
         });
+        
+        // 显示初始消息后滚动到底部
+        setTimeout(() => {
+            scrollToBottom();
+        }, 100);
     } else {
         // 没有角色卡时，显示欢迎界面
         const inputWrapper = document.querySelector('.chat-input-wrapper');
@@ -908,6 +1045,11 @@ function startNewChat() {
     // 更新历史显示
     updateHistoryDisplay();
     
+    // 刷新提示词管理器（如果打开）
+    if (typeof refreshPromptManager === 'function') {
+        refreshPromptManager();
+    }
+    
     showToast('已开始新对话', 'success');
 }
 
@@ -915,6 +1057,11 @@ function startNewChat() {
 function updateHistoryDisplay() {
     // 创建或更新侧边栏的历史对话显示
     let historyPanel = document.querySelector('.history-panel');
+    
+    // 如果提示词管理器面板打开，更新Token统计
+    if (document.querySelector('.prompt-manager-panel') && typeof updateTokenSummary === 'function') {
+        updateTokenSummary();
+    }
     if (!historyPanel) {
         // 在侧边栏添加历史面板
         const sidebar = document.querySelector('.sidebar-nav');
@@ -944,7 +1091,7 @@ function updateHistoryDisplay() {
     
     // 如果当前有对话但不在历史列表中（新对话），临时添加到显示
     let displayHistory = [...chatHistory];
-    if (currentChatId && contextMessages.length > 0) {
+    if (currentChatId && window.contextMessages.length > 0) {
         const existsInHistory = chatHistory.find(chat => 
             chat.chatId === currentChatId || chat.name === currentChatId
         );
@@ -955,10 +1102,10 @@ function updateHistoryDisplay() {
                 chatId: currentChatId,
                 name: currentChatId,
                 character: charName,
-                title: currentChatTitle || contextMessages[0]?.content?.substring(0, 30) || '新对话',
-                preview: contextMessages[0]?.content || '',
+                title: currentChatTitle || window.contextMessages[0]?.content?.substring(0, 30) || '新对话',
+                preview: window.contextMessages[0]?.content || '',
                 timestamp: new Date().toISOString(),
-                messageCount: contextMessages.length,
+                messageCount: window.contextMessages.length,
                 isTemp: true // 标记为临时项
             };
             displayHistory.unshift(tempChat);
@@ -970,7 +1117,7 @@ function updateHistoryDisplay() {
         const historyDiv = document.createElement('div');
         // 检查是否是当前选中的对话 - 更严格的判断
         let isActive = false;
-        if (contextMessages.length > 0 && currentChatId) {
+        if (window.contextMessages.length > 0 && currentChatId) {
             // 优先匹配name（服务器对话），然后匹配chatId（本地对话）
             if (chat.name && chat.name === currentChatId) {
                 isActive = true;
@@ -1010,7 +1157,7 @@ function updateHistoryDisplay() {
 
 // 清空上下文
 window.clearContext = async function() {
-    contextMessages = [];
+    window.contextMessages = [];
     updateHistoryDisplay();
     
     try {
@@ -1025,7 +1172,7 @@ window.clearContext = async function() {
 
 // 自动保存聊天
 async function autoSaveChat() {
-    if (contextMessages.length === 0) return;
+    if (window.contextMessages.length === 0) return;
     
     const userName = window.getCurrentUserPersona ? window.getCurrentUserPersona().name : 'User';
     
@@ -1057,9 +1204,9 @@ async function autoSaveChat() {
             name: currentChatId,
             character: charName,
             title: currentChatTitle || '新对话',
-            preview: contextMessages[0]?.content || '',
+            preview: window.contextMessages[0]?.content || '',
             timestamp: new Date().toISOString(),
-            messageCount: contextMessages.length
+            messageCount: window.contextMessages.length
         };
         chatHistory.push(newChat);
         // 立即更新历史显示
@@ -1075,10 +1222,10 @@ async function autoSaveChat() {
             body: JSON.stringify({
                 character_name: charName,
                 chat_name: currentChatId,
-                messages: contextMessages,
+                messages: window.contextMessages,
                 metadata: {
                     user_name: userName,
-                    title: currentChatTitle || contextMessages[0]?.content?.substring(0, 30) || '新对话',
+                    title: currentChatTitle || window.contextMessages[0]?.content?.substring(0, 30) || '新对话',
                     create_date: new Date().toISOString()
                 }
             })
@@ -1140,7 +1287,7 @@ function escapeHtml(text) {
 
 // 导出当前对话为JSONL（SillyTavern格式）
 window.exportCurrentChat = function() {
-    if (contextMessages.length === 0) {
+    if (window.contextMessages.length === 0) {
         showToast('当前没有对话内容', 'warning');
         return;
     }
@@ -1165,7 +1312,7 @@ window.exportCurrentChat = function() {
     jsonlContent += JSON.stringify(metadata) + '\n';
     
     // 后续行：消息（过滤掉系统消息，因为系统提示不应该在对话历史中）
-    contextMessages.filter(msg => msg.role !== 'system').forEach((msg, index) => {
+    window.contextMessages.filter(msg => msg.role !== 'system').forEach((msg, index) => {
         const entry = {
             name: msg.role === 'user' ? userName : charName,
             is_user: msg.role === 'user',
@@ -1197,11 +1344,11 @@ window.exportCurrentChat = function() {
     const allChats = [...chatHistory];
     
     // 添加当前对话（如果有）
-    if (contextMessages.length > 0) {
+    if (window.contextMessages.length > 0) {
         allChats.unshift({
             title: currentChatTitle,
             chatId: currentChatId || 'temp_' + Date.now(),
-            messages: contextMessages,
+            messages: window.contextMessages,
             timestamp: new Date().toISOString()
         });
     }
@@ -1278,12 +1425,12 @@ window.importChat = function(file) {
             
             if (messages.length > 0) {
                 // 保存当前对话
-                if (contextMessages.length > 0) {
+                if (window.contextMessages.length > 0) {
                     saveChatToHistory();
                 }
                 
                 // 加载导入的对话
-                contextMessages = messages;
+                window.contextMessages = messages;
                 currentChatTitle = messages[0]?.content.substring(0, 30) + '...' || '导入的对话';
                 currentChatId = 'imported_' + Date.now();
                 
@@ -1311,12 +1458,17 @@ window.importChat = function(file) {
                 }
                 
                 // 显示所有消息
-                contextMessages.forEach(msg => {
+                window.contextMessages.forEach(msg => {
                     addMessageToChat(msg.role, msg.content);
                 });
                 
                 // 立即保存导入的对话到历史
                 saveChatToHistory();
+                
+                // 导入对话后滚动到底部
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 100);
                 
                 // 如果有角色名称，尝试保存到服务器
                 if (chatMetadata && chatMetadata.character_name) {
@@ -1336,7 +1488,7 @@ window.importChat = function(file) {
 
 // 保存对话到历史
 function saveChatToHistory() {
-    if (contextMessages.length === 0) return;
+    if (window.contextMessages.length === 0) return;
     
     // 检查是否已经存在相同ID的对话
     const existingIndex = chatHistory.findIndex(chat => chat.chatId === currentChatId);
@@ -1344,7 +1496,7 @@ function saveChatToHistory() {
     const chat = {
         title: currentChatTitle,
         chatId: currentChatId || 'chat_' + Date.now(),
-        messages: [...contextMessages.filter(msg => msg.role !== 'system')], // 过滤系统消息
+        messages: [...window.contextMessages.filter(msg => msg.role !== 'system')], // 过滤系统消息
         timestamp: new Date().toISOString(),
         characterName: window.currentCharacter ? window.currentCharacter.name : null // 添加角色名称
     };
@@ -1385,13 +1537,18 @@ async function loadLatestChatForCharacter(characterName) {
                     const chatData = await chatResponse.json();
                     
                     // 恢复对话内容
-                    contextMessages = chatData.messages || [];
+                    window.contextMessages = chatData.messages || [];
                     currentChatId = latestChat.name;
                     currentChatTitle = latestChat.title || latestChat.name;
                     
                     // 刷新显示
                     refreshChatDisplay();
                     updateHistoryDisplay();
+                    
+                    // 加载最新对话后滚动到底部
+                    setTimeout(() => {
+                        scrollToBottom();
+                    }, 100);
                 }
             }
         }
@@ -1451,7 +1608,7 @@ async function loadChatHistory() {
 // 加载历史对话
 async function loadHistoryChat(index) {
     // 保存当前对话
-    if (contextMessages.length > 0) {
+    if (window.contextMessages.length > 0) {
         saveChatToHistory();
     }
     
@@ -1483,13 +1640,13 @@ async function loadHistoryChat(index) {
             if (response.ok) {
                 const data = await response.json();
                 
-                // 更新contextMessages为服务器返回的消息
-                contextMessages = data.messages || [];
+                // 更新window.contextMessages为服务器返回的消息
+                window.contextMessages = data.messages || [];
                 currentChatId = chat.name;
                 currentChatTitle = chat.title || chat.name;
                 
                 // 更新缓存中的对话数据
-                chatHistory[index].messages = contextMessages;
+                chatHistory[index].messages = window.contextMessages;
                 chatHistory[index].chatId = currentChatId;
                 
             } else {
@@ -1502,7 +1659,7 @@ async function loadHistoryChat(index) {
         }
     } else {
         // 从本地缓存加载
-        contextMessages = [...(chat.messages || [])];
+        window.contextMessages = [...(chat.messages || [])];
         currentChatId = chat.chatId || chat.name;
         currentChatTitle = chat.title || chat.name || '未命名对话';
     }
@@ -1531,24 +1688,34 @@ async function loadHistoryChat(index) {
     }
     
     // 显示所有消息
-    contextMessages.forEach(msg => {
+    window.contextMessages.forEach(msg => {
         addMessageToChat(msg.role, msg.content);
     });
     
     // 更新历史显示
     updateHistoryDisplay();
     
+    // 加载完对话后滚动到底部显示最新消息
+    setTimeout(() => {
+        scrollToBottom();
+    }, 100);
+    
     // 更新角色标题栏
     updateChatHeader();
+    
+    // 刷新提示词管理器（如果打开）
+    if (typeof refreshPromptManager === 'function') {
+        refreshPromptManager();
+    }
     
     showToast(`已加载对话: ${currentChatTitle}`, 'success');
 }
 
 // 编辑消息
 window.editMessage = function(index) {
-    if (index < 0 || index >= contextMessages.length) return;
+    if (index < 0 || index >= window.contextMessages.length) return;
     
-    const message = contextMessages[index];
+    const message = window.contextMessages[index];
     const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
     
     if (!messageContent) return;
@@ -1589,7 +1756,7 @@ window.saveEditedMessage = function(index) {
     const newContent = textarea.value.trim();
     if (newContent) {
         // 更新消息
-        contextMessages[index].content = newContent;
+        window.contextMessages[index].content = newContent;
         
         // 恢复显示
         messageContent.innerHTML = escapeHtml(newContent);
@@ -1603,7 +1770,7 @@ window.saveEditedMessage = function(index) {
 // 取消编辑
 window.cancelEditMessage = function(index) {
     const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
-    const message = contextMessages[index];
+    const message = window.contextMessages[index];
     
     // 恢复原内容
     messageContent.innerHTML = escapeHtml(message.content);
@@ -1611,11 +1778,11 @@ window.cancelEditMessage = function(index) {
 
 // 删除消息
 window.deleteMessage = function(index) {
-    if (index < 0 || index >= contextMessages.length) return;
+    if (index < 0 || index >= window.contextMessages.length) return;
     
     if (confirm('确定要删除这条消息吗？')) {
         // 从数组中删除
-        contextMessages.splice(index, 1);
+        window.contextMessages.splice(index, 1);
         
         // 重新渲染所有消息
         refreshChatDisplay();
@@ -1628,15 +1795,15 @@ window.deleteMessage = function(index) {
 
 // 重新生成消息（仅AI消息）
 window.regenerateMessage = async function(index) {
-    if (index < 0 || index >= contextMessages.length) return;
+    if (index < 0 || index >= window.contextMessages.length) return;
     
-    const message = contextMessages[index];
+    const message = window.contextMessages[index];
     if (message.role !== 'assistant') return;
     
     // 找到上一条用户消息
     let lastUserMessageIndex = -1;
     for (let i = index - 1; i >= 0; i--) {
-        if (contextMessages[i].role === 'user') {
+        if (window.contextMessages[i].role === 'user') {
             lastUserMessageIndex = i;
             break;
         }
@@ -1645,14 +1812,14 @@ window.regenerateMessage = async function(index) {
     if (lastUserMessageIndex === -1) return;
     
     // 删除当前AI回复及之后的所有消息
-    contextMessages.splice(index);
+    window.contextMessages.splice(index);
     refreshChatDisplay();
     
     // 重新发送用户消息以获取新回复
-    const userMessage = contextMessages[lastUserMessageIndex].content;
+    const userMessage = window.contextMessages[lastUserMessageIndex].content;
     
     // 临时移除用户消息，让sendMessage重新添加
-    contextMessages.splice(lastUserMessageIndex, 1);
+    window.contextMessages.splice(lastUserMessageIndex, 1);
     refreshChatDisplay();
     
     // 重新发送
@@ -1662,7 +1829,7 @@ window.regenerateMessage = async function(index) {
         await sendMessage();
     } else {
         // 如果找不到输入框，恢复用户消息
-        contextMessages.splice(lastUserMessageIndex, 0, { role: 'user', content: userMessage });
+        window.contextMessages.splice(lastUserMessageIndex, 0, { role: 'user', content: userMessage });
         refreshChatDisplay();
         showToast('无法重新生成：输入框未找到', 'error');
     }
@@ -1678,7 +1845,7 @@ function refreshChatDisplay() {
     allMessages.forEach(msg => msg.remove());
     
     // 重新添加所有消息
-    contextMessages.forEach((msg, index) => {
+    window.contextMessages.forEach((msg, index) => {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${msg.role}-message`;
         
@@ -1716,9 +1883,28 @@ function refreshChatDisplay() {
     });
     
     // 滚动到底部
-    const lastMessage = messagesContainer.querySelector('.message:last-child');
-    if (lastMessage) {
-        lastMessage.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
+}
+
+// 滚动到底部的统一函数
+function scrollToBottom() {
+    // 首先尝试滚动.messages-container（消息容器）
+    const messagesContainer = document.querySelector('.messages-container');
+    
+    if (messagesContainer) {
+        // 消息容器存在，滚动它
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // 确保滚动生效
+        requestAnimationFrame(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        });
+    } else {
+        // 如果没有消息容器，滚动.chat-container（欢迎界面等）
+        const chatContainer = document.querySelector('.chat-container');
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
     }
 }
 
@@ -1864,7 +2050,7 @@ window.deleteHistoryChat = async function(index) {
             
             // 如果删除的是当前对话，清空当前对话
             if ((chat.chatId === currentChatId || chat.name === currentChatId)) {
-                contextMessages = [];
+                window.contextMessages = [];
                 currentChatId = null;
                 currentChatTitle = '新对话';
                 
