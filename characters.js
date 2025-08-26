@@ -164,7 +164,7 @@ window.saveNewCharacter = async function() {
     
     try {
         // 保存到服务器
-        const response = await fetch(`${config.api_base}/character/save`, {
+        const response = await fetch('/api/character/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -220,7 +220,7 @@ window.importCharacter = async function(file) {
                 }
                 
                 // 保存角色
-                const response = await fetch(`${config.api_base}/character/save`, {
+                const response = await fetch('/api/character/save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -261,7 +261,7 @@ window.importCharacter = async function(file) {
 async function loadCharacterList() {
     try {
         // 从服务器加载
-        const response = await fetch(`${config.api_base}/character/list`);
+        const response = await fetch('/api/character/list');
         if (response.ok) {
             const data = await response.json();
             characterList = data.characters || [];
@@ -508,7 +508,7 @@ window.saveEditedCharacter = async function(index) {
     
     try {
         // 保存到服务器
-        const response = await fetch(`${config.api_base}/character/save`, {
+        const response = await fetch('/api/character/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -589,7 +589,7 @@ window.deleteCharacter = async function(index) {
         try {
             // 从服务器删除
             if (character.id) {
-                await fetch(`${config.api_base}/character/delete/${character.id}`, {
+                await fetch(`/api/character/delete/${character.id}`, {
                     method: 'DELETE'
                 });
             }

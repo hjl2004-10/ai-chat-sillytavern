@@ -45,7 +45,7 @@ window.activateWorldBook = async function(worldBookId) {
             saveData._metadata.active = true;
         }
         
-        const response = await fetch(`${config.api_base}/world/save`, {
+        const response = await fetch('/api/world/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -119,7 +119,7 @@ window.reinitWorldBooks = function() {
     initWorldBookSystem();
     
     // 从服务器加载
-    fetch(`${config.api_base}/world/list`)
+    fetch('/api/world/list')
         .then(res => res.json())
         .then(data => {
             if (data.worldBooks) {

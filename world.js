@@ -7,7 +7,7 @@ let activeWorldBooks = [];  // 激活的世界书ID列表
 async function loadWorldBooksFromServer() {
     try {
         // 加载世界书列表
-        const response = await fetch(`${config.api_base}/world/list`);
+        const response = await fetch('/api/world/list');
         if (response.ok) {
             const data = await response.json();
             if (data.worldBooks) {
@@ -16,7 +16,7 @@ async function loadWorldBooksFromServer() {
         }
         
         // 加载激活状态
-        const activeResponse = await fetch(`${config.api_base}/world/get-active`);
+        const activeResponse = await fetch('/api/world/get-active');
         if (activeResponse.ok) {
             const activeData = await activeResponse.json();
             if (activeData.activeWorldBooks) {
@@ -503,7 +503,7 @@ window.saveNewWorldEntry = async function() {
 async function loadWorldBookList() {
     try {
         // 从服务器加载所有世界书
-        const response = await fetch(`${config.api_base}/world/list`);
+        const response = await fetch('/api/world/list');
         if (response.ok) {
             const data = await response.json();
             if (data.worldBooks) {
@@ -748,7 +748,7 @@ window.deleteWorldEntry = async function(index) {
         
         // 从服务器删除
         try {
-            await fetch(`${config.api_base}/world/delete/${entry.id}`, {
+            await fetch(`/api/world/delete/${entry.id}`, {
                 method: 'DELETE'
             });
         } catch (error) {
@@ -1062,7 +1062,7 @@ function saveWorldBooks() {
 async function saveActiveWorldBooks() {
     // 不使用localStorage，保存到服务器配置
     try {
-        const response = await fetch(`${config.api_base}/world/save-active`, {
+        const response = await fetch('/api/world/save-active', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1157,7 +1157,7 @@ async function saveWorldBookToServer(worldBook) {
             };
         }
         
-        const response = await fetch(`${config.api_base}/world/save`, {
+        const response = await fetch('/api/world/save', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

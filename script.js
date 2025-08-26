@@ -286,7 +286,7 @@ async function loadConfig() {
     
     // 再尝试从服务器加载配置
     try {
-        const response = await fetch(`${config.api_base}/config`);
+        const response = await fetch('/api/config');
         if (response.ok) {
             const data = await response.json();
             // 如果服务器有配置，优先使用服务器的
@@ -332,7 +332,7 @@ async function saveConfig() {
         const configToSave = { ...config };
         delete configToSave.api_base;
         
-        const response = await fetch(`${config.api_base}/config`, {
+        const response = await fetch('/api/config', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -358,7 +358,7 @@ window.loadModels = async function loadModels() {
     }
     
     try {
-        const response = await fetch(`${config.api_base}/models`);
+        const response = await fetch('/api/models');
         if (response.ok) {
             const data = await response.json();
             if (data.models && data.models.length > 0) {
@@ -407,7 +407,7 @@ async function showModelSelector() {
     // 如果没有缓存，才去请求
     if (!models || models.length === 0) {
         try {
-            const response = await fetch(`${config.api_base}/models`);
+            const response = await fetch('/api/models');
             if (!response.ok) {
                 showToast('请先配置API', 'warning');
                 showSettings();
@@ -711,7 +711,7 @@ async function sendMessage() {
         
         if (config.streaming) {
             // 流式请求
-            const response = await fetch(`${config.api_base}/chat/completions`, {
+            const response = await fetch('/api/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -843,7 +843,7 @@ async function sendMessage() {
             }
         } else {
             // 非流式请求
-            const response = await fetch(`${config.api_base}/chat/completions`, {
+            const response = await fetch('/api/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1222,7 +1222,7 @@ window.clearContext = async function() {
     updateHistoryDisplay();
     
     try {
-        await fetch(`${config.api_base}/context/clear`, {
+        await fetch('/api/context/clear', {
             method: 'POST'
         });
         showToast('上下文已清空', 'success');
