@@ -12,9 +12,14 @@ from logging.handlers import RotatingFileHandler
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
+# 获取程序所在目录的绝对路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+
 # ========== 日志配置 ==========
 # 确保日志目录存在
-os.makedirs("logs", exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 # 设置日志格式
 log_formatter = logging.Formatter(
@@ -24,7 +29,7 @@ log_formatter = logging.Formatter(
 
 # 创建文件处理器（按大小轮转）
 file_handler = RotatingFileHandler(
-    'logs/ai_chat.log',
+    os.path.join(LOGS_DIR, 'ai_chat.log'),
     maxBytes=10*1024*1024,  # 10MB
     backupCount=5,
     encoding='utf-8'
@@ -120,7 +125,7 @@ def log_ai_request(endpoint, request_data, response_data=None, error=None):
 # 动态配置管理
 def load_config():
     """从文件加载配置"""
-    config_file = 'data/config.json'
+    config_file = os.path.join(DATA_DIR, 'config.json')
     if os.path.exists(config_file):
         with open(config_file, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -130,8 +135,8 @@ def load_config():
 
 def save_config(new_config):
     """保存配置到文件"""
-    os.makedirs('data', exist_ok=True)
-    with open('data/config.json', 'w', encoding='utf-8') as f:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(os.path.join(DATA_DIR, 'config.json'), 'w', encoding='utf-8') as f:
         json.dump(new_config, f, ensure_ascii=False, indent=2)
     return new_config
 
@@ -146,10 +151,10 @@ current_chat_id = None
 context_window = []
 
 # 确保数据目录存在
-os.makedirs("data/chats", exist_ok=True)
-os.makedirs("data/characters", exist_ok=True)
-os.makedirs("data/worlds", exist_ok=True)
-os.makedirs("data/presets", exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'chats'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'characters'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'worlds'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'presets'), exist_ok=True)
 
 @app.route('/')
 def home():
@@ -198,7 +203,7 @@ def handle_config():
         
         # 保存配置到文件
         save_config(config)
-        print("[服务器] 配置已保存到data/config.json")
+        print(f"[服务器] 配置已保存到 {os.path.join(DATA_DIR, 'config.json')}")
         return jsonify({"status": "success", "config": config})
     else:
         return jsonify(config)
@@ -414,7 +419,7 @@ def save_world_book():
         # 使用安全的文件名
         safe_id = book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
         filename = f"{safe_id}.json"
-        filepath = os.path.join('data/worlds', filename)
+        filepath = os.path.join(DATA_DIR, 'worlds', filename)
         
         # 直接保存SillyTavern格式
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -436,7 +441,7 @@ def save_active_world_books():
         active_books = data.get('activeWorldBooks', [])
         
         # 保存到配置文件
-        active_file = os.path.join('data', 'active_world_books.json')
+        active_file = os.path.join(DATA_DIR, 'active_world_books.json')
         with open(active_file, 'w', encoding='utf-8') as f:
             json.dump({
                 'activeWorldBooks': active_books,
@@ -454,7 +459,7 @@ def save_active_world_books():
 def get_active_world_books():
     """获取激活的世界书状态"""
     try:
-        active_file = os.path.join('data', 'active_world_books.json')
+        active_file = os.path.join(DATA_DIR, 'active_world_books.json')
         if os.path.exists(active_file):
             with open(active_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -469,10 +474,11 @@ def get_world_list():
     """获取所有世界书"""
     try:
         world_books = []
-        if os.path.exists('data/worlds'):
-            for filename in os.listdir('data/worlds'):
+        worlds_dir = os.path.join(DATA_DIR, 'worlds')
+        if os.path.exists(worlds_dir):
+            for filename in os.listdir(worlds_dir):
                 if filename.endswith('.json'):
-                    filepath = os.path.join('data/worlds', filename)
+                    filepath = os.path.join(DATA_DIR, 'worlds', filename)
                     try:
                         with open(filepath, 'r', encoding='utf-8') as f:
                             data = json.load(f)
@@ -540,7 +546,7 @@ def import_world_book():
         safe_id = book_id.replace('/', '_').replace('\\', '_').replace(':', '_')
         
         # 保存完整的世界书数据
-        world_file = os.path.join('data/worlds', f"{safe_id}.json")
+        world_file = os.path.join(DATA_DIR, 'worlds', f"{safe_id}.json")
         with open(world_file, 'w', encoding='utf-8') as f:
             json.dump(world_book, f, ensure_ascii=False, indent=2)
         
@@ -591,7 +597,7 @@ def save_character():
         
         # 保存到文件
         filename = f"{character['id']}.json"
-        filepath = os.path.join('data/characters', filename)
+        filepath = os.path.join(DATA_DIR, 'characters', filename)
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(character, f, ensure_ascii=False, indent=2)
@@ -609,10 +615,11 @@ def get_character_list():
     """获取角色卡列表"""
     try:
         characters = []
-        if os.path.exists('data/characters'):
-            for filename in os.listdir('data/characters'):
+        chars_dir = os.path.join(DATA_DIR, 'characters')
+        if os.path.exists(chars_dir):
+            for filename in os.listdir(chars_dir):
                 if filename.endswith('.json'):
-                    filepath = os.path.join('data/characters', filename)
+                    filepath = os.path.join(DATA_DIR, 'characters', filename)
                     with open(filepath, 'r', encoding='utf-8') as f:
                         character = json.load(f)
                         characters.append(character)
@@ -625,7 +632,7 @@ def get_character_list():
 def get_character(character_id):
     """获取单个角色卡"""
     try:
-        filepath = os.path.join('data/characters', f"{character_id}.json")
+        filepath = os.path.join(DATA_DIR, 'characters', f"{character_id}.json")
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
                 character = json.load(f)
@@ -639,7 +646,7 @@ def get_character(character_id):
 def delete_character(character_id):
     """删除角色卡"""
     try:
-        filepath = os.path.join('data/characters', f"{character_id}.json")
+        filepath = os.path.join(DATA_DIR, 'characters', f"{character_id}.json")
         if os.path.exists(filepath):
             os.remove(filepath)
             return jsonify({
@@ -659,7 +666,7 @@ def save_persona():
         persona_data = request.json
         
         # 保存到文件
-        filepath = os.path.join('data', 'user_persona.json')
+        filepath = os.path.join(DATA_DIR, 'user_persona.json')
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(persona_data, f, ensure_ascii=False, indent=2)
         
@@ -674,7 +681,7 @@ def save_persona():
 def get_persona():
     """获取用户身份信息"""
     try:
-        filepath = os.path.join('data', 'user_persona.json')
+        filepath = os.path.join(DATA_DIR, 'user_persona.json')
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
                 persona_data = json.load(f)
@@ -711,7 +718,7 @@ def upload_persona_avatar():
         filename = f"avatar_{int(time.time())}{ext}"
         
         # 确保头像目录存在
-        avatar_dir = os.path.join('data', 'avatars')
+        avatar_dir = os.path.join(DATA_DIR, 'avatars')
         os.makedirs(avatar_dir, exist_ok=True)
         
         # 保存文件
@@ -729,7 +736,7 @@ def upload_persona_avatar():
 def get_persona_avatar(filename):
     """获取用户头像"""
     try:
-        avatar_dir = os.path.join('data', 'avatars')
+        avatar_dir = os.path.join(DATA_DIR, 'avatars')
         return send_from_directory(avatar_dir, filename)
     except:
         # 如果文件不存在，返回默认头像
@@ -746,7 +753,7 @@ def save_preset():
         # 生成文件名（使用预设名称，替换特殊字符）
         safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in preset_name)
         filename = f"{safe_name}.json"
-        filepath = os.path.join('data/presets', filename)
+        filepath = os.path.join(DATA_DIR, 'presets', filename)
         
         # 保存预设
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -765,10 +772,11 @@ def get_preset_list():
     """获取预设列表"""
     try:
         presets = []
-        if os.path.exists('data/presets'):
-            for filename in os.listdir('data/presets'):
+        presets_dir = os.path.join(DATA_DIR, 'presets')
+        if os.path.exists(presets_dir):
+            for filename in os.listdir(presets_dir):
                 if filename.endswith('.json'):
-                    filepath = os.path.join('data/presets', filename)
+                    filepath = os.path.join(DATA_DIR, 'presets', filename)
                     try:
                         with open(filepath, 'r', encoding='utf-8') as f:
                             preset = json.load(f)
@@ -790,7 +798,7 @@ def get_preset(preset_name):
         if not preset_name.endswith('.json'):
             preset_name += '.json'
             
-        filepath = os.path.join('data/presets', preset_name)
+        filepath = os.path.join(DATA_DIR, 'presets', preset_name)
         if os.path.exists(filepath):
             with open(filepath, 'r', encoding='utf-8') as f:
                 preset = json.load(f)
@@ -813,7 +821,7 @@ def save_chat_to_file():
         metadata = data.get('metadata', {})
         
         # 创建角色目录
-        char_dir = os.path.join('data/chats', character_name.replace('/', '_'))
+        char_dir = os.path.join(DATA_DIR, 'chats', character_name.replace('/', '_'))
         os.makedirs(char_dir, exist_ok=True)
         
         # 保存为JSONL格式（SillyTavern兼容）
@@ -861,7 +869,7 @@ def list_chats_from_file():
         character_name = request.args.get('character', None)
         all_chats = []
         
-        chats_dir = 'data/chats'
+        chats_dir = os.path.join(DATA_DIR, 'chats')
         if not os.path.exists(chats_dir):
             return jsonify({'chats': []})
         
@@ -926,7 +934,7 @@ def get_chat_from_file():
         if not character_name or not chat_name:
             return jsonify({'error': '缺少参数'}), 400
         
-        filepath = os.path.join('data/chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
+        filepath = os.path.join(DATA_DIR, 'chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
         
         if not os.path.exists(filepath):
             return jsonify({'error': '对话不存在'}), 404
@@ -966,7 +974,7 @@ def delete_chat_file():
         if not character_name or not chat_name:
             return jsonify({'error': '缺少参数'}), 400
         
-        filepath = os.path.join('data/chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
+        filepath = os.path.join(DATA_DIR, 'chats', character_name.replace('/', '_'), f'{chat_name}.jsonl')
         
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -988,7 +996,7 @@ def rename_chat_file():
         if not all([character_name, old_name, new_name]):
             return jsonify({'error': '缺少参数'}), 400
         
-        char_dir = os.path.join('data/chats', character_name.replace('/', '_'))
+        char_dir = os.path.join(DATA_DIR, 'chats', character_name.replace('/', '_'))
         old_path = os.path.join(char_dir, f'{old_name}.jsonl')
         new_path = os.path.join(char_dir, f'{new_name}.jsonl')
         
@@ -1011,7 +1019,7 @@ def delete_preset(preset_name):
         if not preset_name.endswith('.json'):
             preset_name += '.json'
             
-        filepath = os.path.join('data/presets', preset_name)
+        filepath = os.path.join(DATA_DIR, 'presets', preset_name)
         if os.path.exists(filepath):
             os.remove(filepath)
             return jsonify({
@@ -1024,8 +1032,9 @@ def delete_preset(preset_name):
         return jsonify({"error": str(e)}), 500
 
 # 加载已保存的配置
-if os.path.exists('data/config.json'):
-    with open('data/config.json', 'r', encoding='utf-8') as f:
+config_path = os.path.join(DATA_DIR, 'config.json')
+if os.path.exists(config_path):
+    with open(config_path, 'r', encoding='utf-8') as f:
         config.update(json.load(f))
 
 if __name__ == '__main__':

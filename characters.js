@@ -370,30 +370,28 @@ window.selectCharacterByName = async function(characterName) {
 window.selectCharacter = function(index) {
     const newCharacter = characterList[index];
     
-    // 如果切换了不同的角色，保存当前对话并开始新对话
+    // 如果切换了不同的角色，保存当前对话
     if (window.currentCharacter && window.currentCharacter.name !== newCharacter.name) {
         // 保存当前角色的对话
         if (contextMessages.length > 0) {
             saveChatToHistory();
         }
-        // 开始新对话
-        startNewChat();
-    } else if (!window.currentCharacter) {
-        // 第一次选择角色
-        startNewChat();
     }
     
-    // 设置当前角色
+    // 设置当前角色（必须在startNewChat之前）
+    const oldCharacter = window.currentCharacter;
     window.currentCharacter = newCharacter;
     
-    // 如果有开场白且是新对话，添加开场白
-    if (window.currentCharacter.first_mes && contextMessages.length === 0) {
-        // 添加开场白（不添加系统提示到contextMessages）
-        addMessageToChat('assistant', window.currentCharacter.first_mes);
-        contextMessages.push({ role: 'assistant', content: window.currentCharacter.first_mes });
+    // 如果是新角色或第一次选择，开始新对话
+    if (!oldCharacter || oldCharacter.name !== newCharacter.name) {
+        // 开始新对话（startNewChat会自动处理first_mes）
+        startNewChat();
         
-        currentChatTitle = `与 ${window.currentCharacter.name} 的对话`;
-        updateHistoryDisplay();
+        // 设置对话标题
+        if (window.currentCharacter.first_mes) {
+            currentChatTitle = `与 ${window.currentCharacter.name} 的对话`;
+            updateHistoryDisplay();
+        }
     }
     
     // 关闭侧边面板

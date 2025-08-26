@@ -354,7 +354,7 @@ body.dark {
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
     padding: 12px 20px;
-    z-index: 100;
+    z-index: 40;
     backdrop-filter: blur(10px);
     background: rgba(255, 255, 255, 0.95);
 }
@@ -665,7 +665,7 @@ body.dark {
 /* 响应式 - 手机横屏 */
 @media (max-width: 768px) {
     .sidebar {
-        z-index: 100;
+        z-index: 200;
         width: 240px;
     }
     
@@ -690,6 +690,7 @@ body.dark {
     .message-inner {
         padding: 0 16px;
         gap: 16px;
+        max-width: 100%;
     }
     
     /* 调整输入框 */
@@ -719,6 +720,25 @@ body.dark {
 
 /* 响应式 - 手机竖屏 */
 @media (max-width: 480px) {
+    /* 修复消息左右不对称问题 */
+    .messages-container {
+        padding: 0;
+        width: 100%;
+    }
+    
+    .message {
+        padding: 16px 0;
+    }
+    
+    .message-inner {
+        padding: 0 15px;
+        max-width: 100%;
+        gap: 10px;
+    }
+    
+    .message-content {
+        padding-right: 10px;
+    }
     /* 侧边栏全屏 */
     .sidebar {
         width: 100%;
@@ -753,8 +773,14 @@ body.dark {
     }
     
     /* 聊天头部调整 */
+    .chat-header {
+        z-index: 40;
+        padding: 10px 12px;
+    }
+    
     .chat-header-content {
         gap: 10px;
+        padding: 0;
     }
     
     .chat-header-avatar {
@@ -775,6 +801,7 @@ body.dark {
     .message-inner {
         padding: 0 12px;
         gap: 12px;
+        max-width: 100%;
     }
     
     .message-avatar {
@@ -905,6 +932,7 @@ body.dark {
     /* 进一步减小内边距 */
     .message-inner {
         padding: 0 10px;
+        max-width: 100%;
     }
     
     .chat-input-wrapper {
@@ -1000,6 +1028,7 @@ body.dark {
     display: flex;
     gap: 24px;
     position: relative;
+    width: 100%;
 }
 
 @keyframes fadeIn {
@@ -1043,6 +1072,7 @@ body.dark {
     word-wrap: break-word;
     color: #2d2d2d;
     min-width: 0;
+    overflow-wrap: break-word;
 }
 
 /* 停止模式的发送按钮 */
@@ -1072,6 +1102,7 @@ body.dark {
     margin-left: 10px;
     opacity: 0;
     visibility: hidden;
+    flex-shrink: 0;
     transition: opacity 0.2s, visibility 0.2s;
     flex-shrink: 0;
 }

@@ -759,12 +759,40 @@ async function sendMessage() {
                                 // 前端回复截断控制
                                 if (config.frontend_max_response && assistantMessage.length >= config.frontend_max_response) {
                                     assistantMessage = assistantMessage.substring(0, config.frontend_max_response);
-                                    contentDiv.textContent = assistantMessage + '\n\n[回复已达到最大长度限制，已自动截断]';
+                                    const truncatedMsg = assistantMessage + '\n\n[回复已达到最大长度限制，已自动截断]';
+                                    // 使用文本修饰器处理流式内容
+                                    if (window.textDecorator) {
+                                        // 设置变量值
+                                        if (window.currentCharacter) {
+                                            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                                        }
+                                        if (window.getCurrentUserPersona) {
+                                            const persona = window.getCurrentUserPersona();
+                                            window.textDecorator.setVariable('user', persona.name || 'User');
+                                        }
+                                        contentDiv.innerHTML = window.textDecorator.processMessage(truncatedMsg, 'assistant');
+                                    } else {
+                                        contentDiv.innerHTML = escapeHtml(truncatedMsg).replace(/\n/g, '<br>');
+                                    }
                                     console.log(`[回复截断] AI回复已达到${config.frontend_max_response}字符限制，已截断`);
                                     reader.cancel(); // 取消读取流
                                     break;
                                 } else {
-                                    contentDiv.textContent = assistantMessage;
+                                    // 处理流式内容
+                                    if (window.textDecorator) {
+                                        // 设置变量值
+                                        if (window.currentCharacter) {
+                                            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                                        }
+                                        if (window.getCurrentUserPersona) {
+                                            const persona = window.getCurrentUserPersona();
+                                            window.textDecorator.setVariable('user', persona.name || 'User');
+                                        }
+                                        // 使用处理后的HTML
+                                        contentDiv.innerHTML = window.textDecorator.processMessage(assistantMessage, 'assistant');
+                                    } else {
+                                        contentDiv.innerHTML = escapeHtml(assistantMessage).replace(/\n/g, '<br>');
+                                    }
                                 }
                                 // 智能自动滚动 - 只在用户没有手动滚动时才自动滚到底部
                                 if (autoScroll) {
@@ -779,7 +807,20 @@ async function sendMessage() {
                 }
             } catch (error) {
                 if (error.name === 'AbortError') {
-                    contentDiv.textContent = assistantMessage + '\n\n[生成已被用户中止]';
+                    const abortedMsg = assistantMessage + '\n\n[生成已被用户中止]';
+                    if (window.textDecorator) {
+                        // 设置变量值
+                        if (window.currentCharacter) {
+                            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                        }
+                        if (window.getCurrentUserPersona) {
+                            const persona = window.getCurrentUserPersona();
+                            window.textDecorator.setVariable('user', persona.name || 'User');
+                        }
+                        contentDiv.innerHTML = window.textDecorator.processMessage(abortedMsg, 'assistant');
+                    } else {
+                        contentDiv.innerHTML = escapeHtml(abortedMsg).replace(/\n/g, '<br>');
+                    }
                 } else {
                     throw error;
                 }
@@ -937,9 +978,29 @@ function addMessageToChat(role, content, isLoading = false) {
             messageIndex = Math.max(0, window.contextMessages.length - 1);
         }
         
+        // 处理消息内容
+        let decoratedContent = content;
+        
+        // 如果有文本修饰器，进行处理
+        if (window.textDecorator) {
+            // 设置变量值
+            if (window.currentCharacter) {
+                window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+            }
+            if (window.getCurrentUserPersona) {
+                const persona = window.getCurrentUserPersona();
+                window.textDecorator.setVariable('user', persona.name || 'User');
+            }
+            // 处理消息（包含HTML转义、变量替换、引号修饰）
+            decoratedContent = window.textDecorator.processMessage(content, role);
+        } else {
+            // 如果没有修饰器，只做HTML转义和换行
+            decoratedContent = escapeHtml(content).replace(/\n/g, '<br>');
+        }
+        
         messageInner.innerHTML = `
             <div class="message-avatar">${role === 'user' ? 'U' : 'AI'}</div>
-            <div class="message-content" data-index="${messageIndex}">${escapeHtml(content)}</div>
+            <div class="message-content" data-index="${messageIndex}">${decoratedContent}</div>
             <div class="message-actions">
                 <button class="message-btn edit-btn" onclick="editMessage(${messageIndex})" title="编辑">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1758,8 +1819,21 @@ window.saveEditedMessage = function(index) {
         // 更新消息
         window.contextMessages[index].content = newContent;
         
-        // 恢复显示
-        messageContent.innerHTML = escapeHtml(newContent);
+        // 恢复显示 - 使用文本修饰器
+        const role = window.contextMessages[index].role;
+        if (window.textDecorator) {
+            // 设置变量值
+            if (window.currentCharacter) {
+                window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+            }
+            if (window.getCurrentUserPersona) {
+                const persona = window.getCurrentUserPersona();
+                window.textDecorator.setVariable('user', persona.name || 'User');
+            }
+            messageContent.innerHTML = window.textDecorator.processMessage(newContent, role);
+        } else {
+            messageContent.innerHTML = escapeHtml(newContent).replace(/\n/g, '<br>');
+        }
         
         // 自动保存
         autoSaveChat();
@@ -1772,8 +1846,20 @@ window.cancelEditMessage = function(index) {
     const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
     const message = window.contextMessages[index];
     
-    // 恢复原内容
-    messageContent.innerHTML = escapeHtml(message.content);
+    // 恢复原内容 - 使用文本修饰器
+    if (window.textDecorator) {
+        // 设置变量值
+        if (window.currentCharacter) {
+            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+        }
+        if (window.getCurrentUserPersona) {
+            const persona = window.getCurrentUserPersona();
+            window.textDecorator.setVariable('user', persona.name || 'User');
+        }
+        messageContent.innerHTML = window.textDecorator.processMessage(message.content, message.role);
+    } else {
+        messageContent.innerHTML = escapeHtml(message.content).replace(/\n/g, '<br>');
+    }
 };
 
 // 删除消息
@@ -1851,9 +1937,25 @@ function refreshChatDisplay() {
         
         const messageInner = document.createElement('div');
         messageInner.className = 'message-inner';
+        // 使用文本修饰器处理消息内容
+        let decoratedContent = msg.content;
+        if (window.textDecorator) {
+            // 设置变量值
+            if (window.currentCharacter) {
+                window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+            }
+            if (window.getCurrentUserPersona) {
+                const persona = window.getCurrentUserPersona();
+                window.textDecorator.setVariable('user', persona.name || 'User');
+            }
+            decoratedContent = window.textDecorator.processMessage(msg.content, msg.role);
+        } else {
+            decoratedContent = escapeHtml(msg.content).replace(/\n/g, '<br>');
+        }
+        
         messageInner.innerHTML = `
             <div class="message-avatar">${msg.role === 'user' ? 'U' : 'AI'}</div>
-            <div class="message-content" data-index="${index}">${escapeHtml(msg.content)}</div>
+            <div class="message-content" data-index="${index}">${decoratedContent}</div>
             <div class="message-actions">
                 <button class="message-btn edit-btn" onclick="editMessage(${index})" title="编辑">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

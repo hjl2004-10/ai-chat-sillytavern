@@ -1,0 +1,76 @@
+/* 文本修饰样式 - 简化版 */
+
+/* ==================== 引号修饰样式 ==================== */
+
+/* 英文引号样式 */
+.quote-text {
+    display: inline;
+    color: inherit;
+    position: relative;
+    padding: 0 2px;
+    /* 淡紫色背景突出显示 */
+    background: rgba(139, 92, 246, 0.08);
+    border-radius: 3px;
+}
+
+/* ==================== 星号动作修饰样式 ==================== */
+
+/* 星号包裹的动作文本 - 使用和引号相同的样式 */
+.action-text {
+    display: inline;
+    color: inherit;
+    position: relative;
+    padding: 0 2px;
+    /* 淡紫色背景突出显示 */
+    background: rgba(139, 92, 246, 0.08);
+    border-radius: 3px;
+}
+
+/* ==================== 深色模式调整 ==================== */
+
+/* 深色模式 - 引号 */
+.dark .quote-text {
+    background: rgba(167, 139, 250, 0.12);
+}
+
+/* 深色模式 - 星号动作 */
+.dark .action-text {
+    background: rgba(167, 139, 250, 0.12);
+}
+
+/* ==================== 鼠标悬停效果 ==================== */
+
+/* 鼠标悬停 - 引号 */
+.quote-text:hover {
+    background: rgba(139, 92, 246, 0.15);
+}
+
+.dark .quote-text:hover {
+    background: rgba(167, 139, 250, 0.2);
+}
+
+/* 鼠标悬停 - 星号动作 */
+.action-text:hover {
+    background: rgba(139, 92, 246, 0.15);
+}
+
+.dark .action-text:hover {
+    background: rgba(167, 139, 250, 0.2);
+}
+
+/* ==================== 确保不影响布局 ==================== */
+
+.message-content .quote-text,
+.message-content .action-text {
+    margin: 0;
+    line-height: inherit;
+}
+
+/* ==================== 响应式调整 ==================== */
+
+@media (max-width: 768px) {
+    .quote-text,
+    .action-text {
+        padding: 0 1px;
+    }
+}

@@ -74,6 +74,41 @@ cd ai-chat-sillytavern-main
 cd ~/ai-chat-sillytavern
 python server.py
 
+# === 如何更新项目代码 ===
+# 方法1：使用 git pull（推荐）
+cd ~/ai-chat-sillytavern
+# 拉取最新代码
+git pull
+# 如果有冲突，先保存本地修改
+git stash
+git pull
+git stash pop
+
+# 方法2：删除旧版本，重新克隆
+cd ~
+rm -rf ai-chat-sillytavern
+git clone https://github.com/hjl2004-10/ai-chat-sillytavern.git
+cd ai-chat-sillytavern
+
+# 方法3：下载最新的 zip 文件
+cd ~
+# 备份旧数据（如果需要）
+cp -r ai-chat-sillytavern/data ~/data_backup
+# 删除旧版本
+rm -rf ai-chat-sillytavern
+# 下载新版本
+wget https://github.com/hjl2004-10/ai-chat-sillytavern/archive/refs/heads/main.zip
+unzip main.zip
+mv ai-chat-sillytavern-main ai-chat-sillytavern
+# 恢复数据（如果需要）
+cp -r ~/data_backup ai-chat-sillytavern/data
+cd ai-chat-sillytavern
+
+# 更新后重新安装依赖（如果有新依赖）
+pip install -r requirements.txt
+# 或使用镜像
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
 # === Ubuntu 相关（备用方案）===
 # 如果你已经安装了 Ubuntu 环境：
 # 进入 Ubuntu：

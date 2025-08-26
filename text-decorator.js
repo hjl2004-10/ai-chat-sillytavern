@@ -1,0 +1,184 @@
+// 文本修饰器模块 - 简化版
+class TextDecorator {
+    constructor() {
+        // 变量缓存
+        this.variables = {
+            user: 'User',
+            char: 'Assistant',
+            model: 'Claude',
+            time: '',
+            date: '',
+            random: ''
+        };
+        
+        // 更新动态变量
+        this.updateDynamicVariables();
+        
+        // 每分钟更新时间
+        setInterval(() => this.updateDynamicVariables(), 60000);
+    }
+    
+    // 更新动态变量
+    updateDynamicVariables() {
+        const now = new Date();
+        this.variables.time = now.toLocaleTimeString('zh-CN', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        this.variables.date = now.toLocaleDateString('zh-CN');
+        this.variables.random = Math.floor(Math.random() * 100);
+    }
+    
+    // 设置变量值
+    setVariable(name, value) {
+        if (name in this.variables) {
+            this.variables[name] = value;
+        }
+    }
+    
+    // 变量替换
+    replaceVariables(text) {
+        let processed = text;
+        
+        // 更新动态变量
+        this.updateDynamicVariables();
+        
+        // 替换变量
+        Object.entries(this.variables).forEach(([key, value]) => {
+            const regex = new RegExp(`{{${key}}}`, 'gi');
+            processed = processed.replace(regex, value);
+        });
+        
+        return processed;
+    }
+    
+    // HTML转义
+    escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+    
+    // 处理引号修饰
+    decorateQuotes(text) {
+        let processed = text;
+        
+        // 处理HTML转义后的引号 &quot;...&quot;
+        // 逐个处理每对引号，避免贪婪匹配问题
+        let result = '';
+        let lastIndex = 0;
+        let inQuote = false;
+        let quoteStart = 0;
+        
+        // 查找所有 &quot; 的位置
+        const quotPattern = /&quot;/g;
+        let match;
+        
+        while ((match = quotPattern.exec(processed)) !== null) {
+            if (!inQuote) {
+                // 开始引号
+                result += processed.substring(lastIndex, match.index);
+                result += '<span class="quote-text">"';
+                quoteStart = match.index + 6; // &quot; 长度为6
+                inQuote = true;
+            } else {
+                // 结束引号
+                result += processed.substring(quoteStart, match.index);
+                result += '"</span>';
+                lastIndex = match.index + 6;
+                inQuote = false;
+            }
+        }
+        
+        // 添加剩余内容
+        if (inQuote) {
+            // 如果有未闭合的引号，不添加修饰
+            result = processed;
+        } else {
+            result += processed.substring(lastIndex);
+        }
+        
+        return result;
+    }
+    
+    // 处理星号修饰（动作/斜体）
+    decorateAsterisks(text) {
+        let processed = text;
+        
+        // 处理 *内容* 格式，但要避免处理 **粗体** 
+        // 先临时替换掉连续的星号
+        processed = processed.replace(/\*\*/g, '__DOUBLE_ASTERISK__');
+        
+        // 处理单个星号包围的内容
+        let result = '';
+        let lastIndex = 0;
+        let inAsterisk = false;
+        let asteriskStart = 0;
+        
+        for (let i = 0; i < processed.length; i++) {
+            if (processed[i] === '*') {
+                if (!inAsterisk) {
+                    // 开始星号
+                    result += processed.substring(lastIndex, i);
+                    result += '<span class="action-text">*';
+                    asteriskStart = i + 1;
+                    inAsterisk = true;
+                } else {
+                    // 结束星号
+                    result += processed.substring(asteriskStart, i);
+                    result += '*</span>';
+                    lastIndex = i + 1;
+                    inAsterisk = false;
+                }
+            }
+        }
+        
+        // 添加剩余内容
+        if (inAsterisk) {
+            // 如果有未闭合的星号，不添加修饰
+            result = processed;
+        } else {
+            result += processed.substring(lastIndex);
+        }
+        
+        // 恢复双星号
+        result = result.replace(/__DOUBLE_ASTERISK__/g, '**');
+        
+        return result;
+    }
+    
+    // 处理消息 - 变量替换 + 引号修饰 + 星号修饰
+    processMessage(text, role = 'assistant') {
+        if (!text) return '';
+        
+        // 1. 先进行变量替换（在HTML转义前）
+        let processed = this.replaceVariables(text);
+        
+        // 2. HTML转义
+        processed = this.escapeHtml(processed);
+        
+        // 3. 引号修饰（处理转义后的&quot;）
+        processed = this.decorateQuotes(processed);
+        
+        // 4. 星号修饰
+        processed = this.decorateAsterisks(processed);
+        
+        // 5. 保留换行
+        processed = processed.replace(/\n/g, '<br>');
+        
+        return processed;
+    }
+}
+
+// 创建全局实例
+window.textDecorator = new TextDecorator();
+
+// 导出给其他模块使用
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = TextDecorator;
+}
