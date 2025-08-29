@@ -68,14 +68,24 @@ class TextDecorator {
     decorateQuotes(text) {
         let processed = text;
         
-        // 处理HTML转义后的引号 &quot;...&quot;
-        // 逐个处理每对引号，避免贪婪匹配问题
+        // 处理所有类型的引号
+        // 1. 英文双引号（HTML转义后）: &quot;
+        // 2. 英文单引号（HTML转义后）: &#039;
+        // 3. 中文双引号: “ ”
+        // 4. 中文单引号: ‘ ’
+        
+        // 先处理中文双引号（成对出现）
+        processed = processed.replace(/“([^”]*)”/g, '<span class="quote-text">“$1”</span>');
+        
+        // 处理中文单引号（成对出现）
+        processed = processed.replace(/‘([^’]*)’/g, '<span class="quote-text">‘$1’</span>');
+        
+        // 处理英文双引号（HTML转义后）
         let result = '';
         let lastIndex = 0;
         let inQuote = false;
         let quoteStart = 0;
         
-        // 查找所有 &quot; 的位置
         const quotPattern = /&quot;/g;
         let match;
         
@@ -84,7 +94,7 @@ class TextDecorator {
                 // 开始引号
                 result += processed.substring(lastIndex, match.index);
                 result += '<span class="quote-text">"';
-                quoteStart = match.index + 6; // &quot; 长度为6
+                quoteStart = match.index + 6;
                 inQuote = true;
             } else {
                 // 结束引号
@@ -102,6 +112,9 @@ class TextDecorator {
         } else {
             result += processed.substring(lastIndex);
         }
+        
+        // 处理英文单引号（HTML转义后）
+        result = result.replace(/&#039;([^&#039;]*)&#039;/g, '<span class="quote-text">\$1\'</span>');
         
         return result;
     }
