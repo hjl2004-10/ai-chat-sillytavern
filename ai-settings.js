@@ -280,10 +280,10 @@ window.saveAISettings = async function() {
     
     // 保存到统一的config接口
     try {
-        const apiBase = window.config?.api_base || 'http://localhost:5000/api';
         console.log('[saveAISettings] 即将发送的完整config对象:', JSON.stringify(window.config, null, 2));
         
-        const response = await fetch(`${apiBase}/config`, {
+        // 使用相对路径，让浏览器自动处理
+        const response = await fetch('/api/config', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

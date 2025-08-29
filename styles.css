@@ -741,7 +741,7 @@ body.dark {
     }
     /* 侧边栏全屏 */
     .sidebar {
-        width: 100%;
+        width: 50%;
     }
     
     .sidebar.hidden {
@@ -818,6 +818,11 @@ body.dark {
     /* 消息操作按钮调整 */
     .message-actions {
         gap: 3px;
+    }
+    
+    .message-header {
+        min-height: 24px;
+        margin-bottom: 6px;
     }
     
     .message-btn {
@@ -1025,9 +1030,18 @@ body.dark {
     max-width: 768px;
     margin: 0 auto;
     padding: 0 24px;
+    width: 100%;
+}
+
+.message-header {
     display: flex;
-    gap: 24px;
-    position: relative;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 30px;
+    margin-bottom: 8px;
+}
+
+.message-body {
     width: 100%;
 }
 
@@ -1099,12 +1113,9 @@ body.dark {
 .message-actions {
     display: flex;
     gap: 5px;
-    margin-left: 10px;
     opacity: 0;
     visibility: hidden;
-    flex-shrink: 0;
     transition: opacity 0.2s, visibility 0.2s;
-    flex-shrink: 0;
 }
 
 .message:hover .message-actions {
