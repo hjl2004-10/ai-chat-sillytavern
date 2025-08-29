@@ -1,24 +1,42 @@
-# AI Chat System v2.2.0 🚀
+# AI Chat System v2.3.0 🚀
 
 [简体中文](./README.md) | English
 
 A smart AI chat system fully compatible with SillyTavern data format, supporting OpenAI-compatible API interfaces.
 
-## 🌟 Latest Updates (v2.2.0)
+## 🌟 Latest Updates (v2.3.0)
+
+### 🎆 New Features
+- 🌨️ **HTML Renderer**: Directly render and preview HTML content in chat interface
+  - Real-time HTML preview, instantly see webpage effects
+  - Sandboxed environment, safely execute JavaScript code
+  - Smart height adaptation, automatically adjusts based on content
+  - Support for interactive elements, buttons and forms work normally
+- 📱 **Mobile Optimization**: 
+  - Sidebar auto-closes when clicking blank area
+  - Fixed issue where mobile couldn't import jsonl files
+  - Input box height auto-adaptation optimization (max 500px)
+
+### 🔧 Bug Fixes
+- Fixed export file format issue (unified to jsonl)
+- Fixed iframe height growing with clicks bug
+- Resolved HTML renderer height limitation issues
+
+### v2.2.0 Updates
 
 ### 🔥 Important Fixes
 - 🔧 **Config File Issue Fixed**: Resolved the issue where configuration cannot be saved when accessing via IP on mobile
 - 🎨 **Message Style Optimization**: Fixed layout issue where AI message buttons occupied text space
 - 📱 **Mobile Experience Optimization**: Sidebar adjusted to half-screen display, no longer full-screen blocking
 
-### v2.1.0 Features
+### v2.1.0 Updates
 - ✨ **Text Decorator System**: Support for text highlighting, strikethrough, color marking and other rich text editing
 - 🎨 **Rich Text Editing Toolbar**: Convenient text formatting buttons
 - 📝 **Markdown Preview**: Real-time preview of Markdown formatted text
 - 🚀 **Server Deployment Optimization**: Uses absolute path management, supports multi-server deployment
 - 💾 **Convenient Data Migration**: Simply copy the data folder to complete all data migration
 
-### v2.0.0 Features
+### v2.0.0 Updates
 - ✨ Character name display control
 - 🔄 Real-time history updates
 - 🎯 Smart startup script

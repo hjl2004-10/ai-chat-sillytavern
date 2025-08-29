@@ -208,6 +208,36 @@ def handle_config():
     else:
         return jsonify(config)
 
+@app.route('/api/frontend-decorator/config', methods=['GET', 'POST'])
+def handle_frontend_decorator_config():
+    """处理前端修饰配置 - 独立的配置文件"""
+    config_file = os.path.join(DATA_DIR, 'frontend_decorator.json')
+    
+    if request.method == 'POST':
+        # 保存前端修饰配置
+        decorator_config = request.json
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(decorator_config, f, ensure_ascii=False, indent=2)
+        
+        app.logger.info(f"[前端修饰] 配置已保存: {decorator_config}")
+        return jsonify({"status": "success", "config": decorator_config})
+    else:
+        # 读取前端修饰配置
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                decorator_config = json.load(f)
+        else:
+            # 默认配置
+            decorator_config = {
+                "enabled": False,
+                "allowScript": False,
+                "maxDepth": 1,
+                "quoteDecoration": True,
+                "actionDecoration": True
+            }
+        return jsonify(decorator_config)
+
 @app.route('/api/models', methods=['GET'])
 def get_models():
     """获取可用的模型列表"""

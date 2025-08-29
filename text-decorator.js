@@ -172,7 +172,22 @@ class TextDecorator {
         // 1. 先进行变量替换（在HTML转义前）
         let processed = this.replaceVariables(text);
         
-        // 2. HTML转义
+        // 特殊处理：保护HTML代码块不被转义
+        const htmlCodeBlocks = [];
+        let blockIndex = 0;
+        
+        // 提取并保护```html代码块
+        processed = processed.replace(/```html\s*([\s\S]*?)```/g, (match, code) => {
+            const placeholder = `__HTML_CODE_BLOCK_${blockIndex}__`;
+            htmlCodeBlocks[blockIndex] = {
+                full: match,
+                code: code.trim()
+            };
+            blockIndex++;
+            return placeholder;
+        });
+        
+        // 2. HTML转义（不会影响占位符）
         processed = this.escapeHtml(processed);
         
         // 3. 引号修饰（处理转义后的&quot;）
@@ -183,6 +198,16 @@ class TextDecorator {
         
         // 5. 保留换行
         processed = processed.replace(/\n/g, '<br>');
+        
+        // 6. 恢复HTML代码块为<pre><code>格式（供HTML渲染器处理）
+        htmlCodeBlocks.forEach((block, index) => {
+            const placeholder = `__HTML_CODE_BLOCK_${index}__`;
+            // 关键：必须转义HTML内容，防止样式泄露
+            const escapedCode = this.escapeHtml(block.code);
+            // 创建代码块元素，使用转义后的内容
+            const codeBlockHtml = `<pre class="html-code-block"><code class="language-html" data-has-html="true">${escapedCode}</code></pre>`;
+            processed = processed.replace(placeholder, codeBlockHtml);
+        });
         
         return processed;
     }

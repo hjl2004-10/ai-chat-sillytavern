@@ -148,8 +148,32 @@ window.toggleCharacterHeader = function(show) {
     }
 };
 
+// 移动端点击主内容区域关闭侧边栏
+function setupMobileSidebarClose() {
+    const mainContent = document.getElementById('mainContent');
+    const sidebar = document.getElementById('sidebar');
+    
+    // 添加点击事件监听
+    mainContent.addEventListener('click', function(e) {
+        // 只在移动端生效
+        if (window.innerWidth <= 768) {
+            // 如果侧边栏是展开的
+            if (!sidebar.classList.contains('hidden')) {
+                // 检查点击是否在侧边栏区域外
+                const sidebarRect = sidebar.getBoundingClientRect();
+                if (e.clientX > sidebarRect.right) {
+                    closeSidebar();
+                }
+            }
+        }
+    });
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
+    // 设置移动端侧边栏关闭功能
+    setupMobileSidebarClose();
+    
     // 获取DOM元素
     chatContainer = document.querySelector('.chat-container');
     chatInput = document.querySelector('.chat-input');
@@ -161,7 +185,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (textarea) {
         textarea.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+            // 设置更高的限制（500px），避免无限扩展
+            this.style.height = Math.min(this.scrollHeight, 500) + 'px';
         });
     }
     
@@ -981,7 +1006,7 @@ function addMessageToChat(role, content, isLoading = false) {
         // 处理消息内容
         let decoratedContent = content;
         
-        // 如果有文本修饰器，进行处理
+        // 使用文本修饰器处理基础文本（HTML渲染器会通过DOM观察器独立处理）
         if (window.textDecorator) {
             // 设置变量值
             if (window.currentCharacter) {
@@ -1459,6 +1484,13 @@ window.exportCurrentChat = function() {
 
 // 导入SillyTavern格式的对话
 window.importChat = function(file) {
+    // 检查文件名，支持jsonl和json
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.jsonl') && !fileName.endsWith('.json')) {
+        // 如果文件没有正确的扩展名，仍然尝试解析
+        console.log('[导入] 文件扩展名不是jsonl或json，但仍然尝试解析');
+    }
+    
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -1763,6 +1795,12 @@ async function loadHistoryChat(index) {
     // 加载完对话后滚动到底部显示最新消息
     setTimeout(() => {
         scrollToBottom();
+        
+        // 触发HTML渲染器处理所有消息
+        if (window.htmlRenderer && window.htmlRenderer.config.enabled) {
+            console.log('[加载历史] 触发HTML渲染');
+            window.htmlRenderer.processAllMessages();
+        }
     }, 100);
     
     // 更新角色标题栏
@@ -2093,6 +2131,14 @@ function refreshChatDisplay() {
     
     // 滚动到底部
     scrollToBottom();
+    
+    // 触发HTML渲染器处理所有消息
+    if (window.htmlRenderer && window.htmlRenderer.config.enabled) {
+        setTimeout(() => {
+            console.log('[刷新显示] 触发HTML渲染');
+            window.htmlRenderer.processAllMessages();
+        }, 100);
+    }
 }
 
 // 滚动到底部的统一函数
