@@ -1,5 +1,7 @@
 # AI 对话系统 v2.2.0 🚀
 
+简体中文 | [English](./README.en.md)
+
 一个完全兼容 SillyTavern 数据格式的智能 AI 对话系统，支持 OpenAI 兼容的 API 接口。
 
 ## 🌟 最新更新 (v2.2.0)
