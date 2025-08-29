@@ -1890,38 +1890,137 @@ window.regenerateMessage = async function(index) {
     const message = window.contextMessages[index];
     if (message.role !== 'assistant') return;
     
-    // 找到上一条用户消息
-    let lastUserMessageIndex = -1;
-    for (let i = index - 1; i >= 0; i--) {
-        if (window.contextMessages[i].role === 'user') {
-            lastUserMessageIndex = i;
-            break;
-        }
+    // 如果正在发送中，禁止操作
+    if (isSending) {
+        showToast('正在发送中，请稍后再试', 'warning');
+        return;
     }
-    
-    if (lastUserMessageIndex === -1) return;
     
     // 删除当前AI回复及之后的所有消息
     window.contextMessages.splice(index);
     refreshChatDisplay();
     
-    // 重新发送用户消息以获取新回复
-    const userMessage = window.contextMessages[lastUserMessageIndex].content;
-    
-    // 临时移除用户消息，让sendMessage重新添加
-    window.contextMessages.splice(lastUserMessageIndex, 1);
-    refreshChatDisplay();
-    
-    // 重新发送
-    const chatInput = document.querySelector('.chat-input');
-    if (chatInput) {
-        chatInput.value = userMessage;
-        await sendMessage();
-    } else {
-        // 如果找不到输入框，恢复用户消息
-        window.contextMessages.splice(lastUserMessageIndex, 0, { role: 'user', content: userMessage });
-        refreshChatDisplay();
-        showToast('无法重新生成：输入框未找到', 'error');
+    // 直接发送新的AI请求
+    try {
+        // 设置发送状态
+        isSending = true;
+        updateSendButton(true);
+        
+        // 创建中止控制器
+        currentAbortController = new AbortController();
+        
+        // 构建上下文消息
+        let contextMessages = window.contextMessages;
+        
+        // 如果有提示词管理器，使用它来构建消息
+        if (typeof buildPromptMessages === 'function') {
+            // 准备用户设置
+            let userPersonaData = null;
+            if (window.getCurrentUserPersona) {
+                userPersonaData = window.getCurrentUserPersona();
+            }
+            const userSettings = {
+                userName: userPersonaData?.name || 'User',
+                persona: userPersonaData?.description || ''
+            };
+            
+            // 使用提示词管理器构建消息
+            const result = buildPromptMessages(
+                window.contextMessages,
+                window.currentCharacter || {},
+                userSettings,
+                window.activeWorldBooks || []
+            );
+            
+            if (result && result.messages) {
+                contextMessages = result.messages;
+            }
+        }
+        
+        // 发送请求
+        const response = await fetch('/api/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                messages: contextMessages,
+                model: config.model,
+                temperature: config.temperature || 1.0,
+                top_p: config.top_p || 1.0,
+                frequency_penalty: config.frequency_penalty || 0,
+                presence_penalty: config.presence_penalty || 0,
+                stream: config.streaming !== false
+            }),
+            signal: currentAbortController.signal
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API请求失败: ${response.status}`);
+        }
+        
+        // 创建AI消息
+        const newAssistantMessage = { role: 'assistant', content: '' };
+        window.contextMessages.push(newAssistantMessage);
+        const newMessageIndex = window.contextMessages.length - 1;
+        
+        // 处理响应
+        if (config.streaming !== false) {
+            // 流式响应
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') break;
+                        
+                        try {
+                            const json = JSON.parse(data);
+                            if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
+                                newAssistantMessage.content += json.choices[0].delta.content;
+                                // 使用刷新显示更新消息
+                                refreshChatDisplay();
+                            }
+                        } catch (e) {
+                            console.error('解析流式数据失败:', e);
+                        }
+                    }
+                }
+            }
+        } else {
+            // 非流式响应
+            const data = await response.json();
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                newAssistantMessage.content = data.choices[0].message.content;
+                refreshChatDisplay();
+            }
+        }
+        
+        // 保存对话
+        await autoSaveChat();
+        
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('重新生成已取消');
+        } else {
+            console.error('重新生成失败:', error);
+            showToast('重新生成失败: ' + error.message, 'error');
+        }
+    } finally {
+        // 重置状态
+        isSending = false;
+        currentAbortController = null;
+        updateSendButton(false);
     }
 };
 
