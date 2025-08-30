@@ -1,18 +1,31 @@
-# AI Chat System v2.4.0 🚀
+# AI Chat System v2.5.0 🚀
 
 [简体中文](./README.md) | English
 
 A smart AI chat system fully compatible with SillyTavern data format, supporting OpenAI-compatible API interfaces.
 
-## 🌟 Latest Updates (v2.4.0)
+## 🌟 Latest Updates (v2.5.0)
 
 ### 🎯 New Features
-- 🔄 **Regex Replacement System**: Powerful text processing capabilities
-  - Support for global and character-specific regex scripts
-  - Real-time testing and preview of replacement effects
-  - Support for capture groups and complex pattern matching
-  - Selectable application locations (input/output/display)
-  - Auto-save and manage regex script library
+- 📄 **Document Upload & Parsing System**: Intelligent document processing
+  - Support multiple document formats (PDF, Word, Excel, PPT, JSON, TXT, etc.)
+  - Drag-and-drop or click to upload
+  - Real-time document preview and content extraction
+  - Auto-attach document content to conversation
+  - Uses open-source Unstructured library for advanced parsing
+  - Lightweight fallback parser (PyPDF2)
+
+### ⚠️ Important Notice
+- **New Dependencies**: Requires `PyPDF2` for PDF parsing
+  ```bash
+  pip install PyPDF2
+  # Or use full installation
+  pip install -r requirements.txt
+  ```
+- **Optional Advanced Dependencies**: Install `unstructured` for more formats (Word, Excel, PPT, etc.)
+  ```bash
+  pip install unstructured[all-docs]
+  ```
 
 ### 🛠️ System Optimizations
 - **HTML Renderer Improvements**:
@@ -29,6 +42,27 @@ A smart AI chat system fully compatible with SillyTavern data format, supporting
 - Fixed content loss issue when switching chat history
 - Fixed HTML code block line wrap display issue
 - Prevented accidental HTML rendering in settings interface
+
+## 📝 Version Notes
+
+### Branch Management
+- **main branch**: v2.5.0 and future extended versions (includes document parsing and new features)
+- **stable-v2.4 branch**: Stable version, maintains native SillyTavern compatibility
+
+> If you need the stable native feature version, please switch to `stable-v2.4` branch:
+> ```bash
+> git checkout stable-v2.4
+> ```
+
+---
+
+## 📜 Version History
+
+### v2.4.0 Updates
+- 🔄 **Regex Replacement System**: Powerful text processing capabilities
+  - Support for global and character-specific regex scripts
+  - Real-time testing and preview of replacement effects
+  - Support for capture groups and complex pattern matching
 
 ### v2.3.0 Updates
 

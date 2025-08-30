@@ -8,6 +8,8 @@ import os
 import uuid
 import logging
 from logging.handlers import RotatingFileHandler
+from werkzeug.utils import secure_filename
+from document_parser import UniversalDocumentParser
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -16,6 +18,13 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
+
+# 确保上传目录存在
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# 初始化文档解析器
+doc_parser = UniversalDocumentParser(max_file_size=20*1024*1024)  # 20MB限制
 
 # ========== 日志配置 ==========
 # 确保日志目录存在
@@ -1104,6 +1113,100 @@ def save_regex_scripts():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ==================== 文档解析API ====================
+@app.route('/api/document/parse', methods=['POST'])
+def parse_document():
+    """解析上传的文档"""
+    try:
+        # 增加请求大小限制
+        app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB
+        
+        # 检查是否有文件
+        if 'file' not in request.files:
+            return jsonify({"error": "没有上传文件"}), 400
+        
+        file = request.files['file']
+        
+        # 检查文件名
+        if file.filename == '':
+            return jsonify({"error": "文件名为空"}), 400
+        
+        # 检查文件大小（在内存中）
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)  # 重置文件指针
+        
+        if file_size > 20 * 1024 * 1024:  # 20MB限制
+            return jsonify({"error": f"文件太大: {file_size/1024/1024:.1f}MB，最大支持20MB"}), 413
+        
+        # 安全文件名
+        filename = secure_filename(file.filename)
+        
+        # 生成唯一文件名避免冲突
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        filepath = os.path.join(UPLOAD_DIR, unique_filename)
+        
+        # 保存文件
+        file.save(filepath)
+        
+        try:
+            # 解析文档
+            result = doc_parser.parse(filepath)
+            
+            if result['success']:
+                # 记录日志
+                log_ai_request(
+                    endpoint='/api/document/parse',
+                    request_data={'filename': filename, 'size': result['file_info']['size']},
+                    response_data={'text_length': len(result['text'])},
+                    error=None
+                )
+                
+                # 返回解析结果
+                return jsonify({
+                    'success': True,
+                    'text': result['text'],
+                    'filename': filename,
+                    'size': result['file_info']['size'],
+                    'elements_count': result.get('elements_count', 0),
+                    'tables_count': len(result.get('tables', [])),
+                    'parser_used': result.get('parser', 'unknown')
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('error', '解析失败')
+                }), 500
+                
+        finally:
+            # 清理上传的文件
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                
+    except Exception as e:
+        log_ai_request(
+            endpoint='/api/document/parse',
+            request_data={'error': 'exception'},
+            response_data=None,
+            error=str(e)
+        )
+        return jsonify({"error": f"服务器错误: {str(e)}"}), 500
+
+@app.route('/api/document/supported', methods=['GET'])
+def get_supported_formats():
+    """获取支持的文档格式"""
+    return jsonify({
+        'formats': {
+            'documents': ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'],
+            'text': ['.txt', '.md', '.rtf', '.odt'],
+            'web': ['.html', '.htm', '.xml'],
+            'images': ['.png', '.jpg', '.jpeg', '.tiff', '.bmp'],
+            'email': ['.eml', '.msg'],
+            'data': ['.csv', '.json']
+        },
+        'max_size_mb': 20
+    })
 
 # 加载已保存的配置
 config_path = os.path.join(DATA_DIR, 'config.json')

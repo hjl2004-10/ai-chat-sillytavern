@@ -1,3 +1,12 @@
 Flask==3.0.0
 Flask-Cors==4.0.0
 requests==2.31.0
+
+# 基础文档解析依赖（轻量级）
+PyPDF2==3.0.1  # PDF解析（必装）
+chardet==5.2.0  # 编码检测
+
+# 可选: 高级文档解析 - Unstructured（功能更强但体积较大）
+# unstructured[pdf,docx,pptx]==0.15.7  # 支持更多格式
+# python-magic==0.4.27  # 文件类型检测
+# 安装命令: pip install unstructured[all-docs]

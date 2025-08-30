@@ -143,10 +143,14 @@
                         <textarea class="chat-input" placeholder="有什么我能帮您的吗？"></textarea>
                         <div class="chat-input-actions">
                             <div class="input-tools">
-                                <button class="input-tool-button">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"></path>
+                                <button class="input-tool-button" id="doc-upload-btn" title="上传文档 (PDF/Word/Excel等)">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                        <line x1="12" y1="18" x2="12" y2="12"/>
+                                        <line x1="9" y1="15" x2="15" y2="15"/>
                                     </svg>
+                                    <input type="file" id="doc-file-input" style="display: none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.html,.csv,.json">
                                 </button>
                                 <div style="width: 1px; height: 16px; background: #e5e7eb; margin: 0 8px;"></div>
                                 <button class="input-tool-button" onclick="regexManager.showPanel()">
@@ -228,5 +232,6 @@
     <script src="prompt-manager.js"></script>
     <script src="user-persona.js"></script>
     <script src="cache-manager.js"></script>
+    <script src="document-upload.js"></script>
 </body>
 </html>
