@@ -1961,7 +1961,18 @@ window.regenerateMessage = async function(index) {
     
     // 删除当前AI回复及之后的所有消息
     window.contextMessages.splice(index);
-    refreshChatDisplay();
+    
+    // 删除DOM中对应的消息元素（而不是刷新整个显示）
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+        const allMessages = messagesContainer.querySelectorAll('.message');
+        // 删除从index开始的所有消息DOM
+        for (let i = index; i < allMessages.length; i++) {
+            if (allMessages[i]) {
+                allMessages[i].remove();
+            }
+        }
+    }
     
     // 直接发送新的AI请求
     try {
@@ -2022,10 +2033,13 @@ window.regenerateMessage = async function(index) {
             throw new Error(`API请求失败: ${response.status}`);
         }
         
-        // 创建AI消息
+        // 添加AI消息到上下文
         const newAssistantMessage = { role: 'assistant', content: '' };
         window.contextMessages.push(newAssistantMessage);
         const newMessageIndex = window.contextMessages.length - 1;
+        
+        // 显示加载状态（像正常发送一样）
+        const loadingDiv = addMessageToChat('assistant', '', true);
         
         // 处理响应
         if (config.streaming !== false) {
@@ -2050,9 +2064,38 @@ window.regenerateMessage = async function(index) {
                         try {
                             const json = JSON.parse(data);
                             if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
-                                newAssistantMessage.content += json.choices[0].delta.content;
-                                // 使用刷新显示更新消息
-                                refreshChatDisplay();
+                                const chunk = json.choices[0].delta.content;
+                                newAssistantMessage.content += chunk;
+                                
+                                // 如果还没有创建消息div，先移除加载动画并创建
+                                if (loadingDiv && loadingDiv.parentNode) {
+                                    loadingDiv.remove();
+                                    const messageDiv = addMessageToChat('assistant', '', false);
+                                    window.regenerateMessageDiv = messageDiv;
+                                }
+                                
+                                // 增量更新内容（像正常发送一样）
+                                if (window.regenerateMessageDiv) {
+                                    const contentDiv = window.regenerateMessageDiv.querySelector('.message-content');
+                                    if (contentDiv) {
+                                        // 使用文本修饰器处理内容
+                                        let decoratedContent = newAssistantMessage.content;
+                                        if (window.textDecorator) {
+                                            if (window.currentCharacter) {
+                                                window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                                            }
+                                            if (window.getCurrentUserPersona) {
+                                                const persona = window.getCurrentUserPersona();
+                                                window.textDecorator.setVariable('user', persona.name || 'User');
+                                            }
+                                            decoratedContent = window.textDecorator.processMessage(newAssistantMessage.content, 'assistant');
+                                        } else {
+                                            decoratedContent = escapeHtml(newAssistantMessage.content).replace(/\n/g, '<br>');
+                                        }
+                                        contentDiv.innerHTML = decoratedContent;
+                                        scrollToBottom();
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.error('解析流式数据失败:', e);
@@ -2065,14 +2108,41 @@ window.regenerateMessage = async function(index) {
             const data = await response.json();
             if (data.choices && data.choices[0] && data.choices[0].message) {
                 newAssistantMessage.content = data.choices[0].message.content;
-                refreshChatDisplay();
+                
+                // 移除加载动画并显示完整消息
+                if (loadingDiv && loadingDiv.parentNode) {
+                    loadingDiv.remove();
+                }
+                addMessageToChat('assistant', newAssistantMessage.content);
             }
+        }
+        
+        // 清理临时变量
+        delete window.regenerateMessageDiv;
+        
+        // 触发HTML渲染器处理最终消息
+        if (window.htmlRenderer && window.htmlRenderer.config.enabled) {
+            setTimeout(() => {
+                window.htmlRenderer.processAllMessages();
+            }, 100);
         }
         
         // 保存对话
         await autoSaveChat();
         
     } catch (error) {
+        // 清理临时变量
+        delete window.regenerateMessageDiv;
+        
+        // 移除加载动画（如果存在）
+        const loadingDivToRemove = document.querySelector('.message.assistant-message .loading-dots');
+        if (loadingDivToRemove) {
+            const messageToRemove = loadingDivToRemove.closest('.message');
+            if (messageToRemove) {
+                messageToRemove.remove();
+            }
+        }
+        
         if (error.name === 'AbortError') {
             console.log('重新生成已取消');
         } else {
