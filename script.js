@@ -1960,19 +1960,26 @@ window.regenerateMessage = async function(index) {
     }
     
     // 删除当前AI回复及之后的所有消息
+    const deletedCount = window.contextMessages.length - index;
     window.contextMessages.splice(index);
     
-    // 删除DOM中对应的消息元素（而不是刷新整个显示）
+    // 只删除对应的DOM元素，不重建整个列表
     const messagesContainer = document.querySelector('.messages-container');
     if (messagesContainer) {
-        const allMessages = messagesContainer.querySelectorAll('.message');
-        // 删除从index开始的所有消息DOM
-        for (let i = index; i < allMessages.length; i++) {
-            if (allMessages[i]) {
-                allMessages[i].remove();
+        const messages = messagesContainer.querySelectorAll('.message');
+        // 删除从index开始的所有消息元素
+        for (let i = messages.length - deletedCount; i < messages.length; i++) {
+            if (messages[i]) {
+                messages[i].remove();
             }
         }
     }
+    
+    // 显示加载状态（使用与正常发送一致的方法）
+    const loadingDiv = addMessageToChat('assistant', '', true);
+    
+    // 滚动到底部
+    scrollToBottom();
     
     // 直接发送新的AI请求
     try {
@@ -1983,10 +1990,10 @@ window.regenerateMessage = async function(index) {
         // 创建中止控制器
         currentAbortController = new AbortController();
         
-        // 构建上下文消息
-        let contextMessages = window.contextMessages;
+        // 构建上下文消息（与正常发送保持一致）
+        let finalMessages = window.contextMessages;
         
-        // 如果有提示词管理器，使用它来构建消息
+        // 如果有提示词管理器，使用它来构建消息（与正常发送保持一致）
         if (typeof buildPromptMessages === 'function') {
             // 准备用户设置
             let userPersonaData = null;
@@ -1998,17 +2005,102 @@ window.regenerateMessage = async function(index) {
                 persona: userPersonaData?.description || ''
             };
             
-            // 使用提示词管理器构建消息
-            const result = buildPromptMessages(
-                window.contextMessages,
-                window.currentCharacter || {},
-                userSettings,
-                window.activeWorldBooks || []
-            );
+            // 获取当前角色信息
+            const character = window.currentCharacter || null;
             
-            if (result && result.messages) {
-                contextMessages = result.messages;
+            // 获取世界书信息
+            let worldInfo = null;
+            if (typeof checkWorldBookTriggers === 'function') {
+                console.log('[世界书] 检查触发条件...');
+                console.log('[世界书] 当前激活的世界书:', activeWorldBooks);
+                const triggered = checkWorldBookTriggers(window.contextMessages);
+                console.log('[世界书] 触发的条目:', triggered);
+                if (triggered.length > 0) {
+                    worldInfo = {
+                        before: triggered.filter(t => t.position === 'before').map(t => t.content).join('\n\n'),
+                        after: triggered.filter(t => t.position === 'after').map(t => t.content).join('\n\n')
+                    };
+                    console.log('[世界书] 将注入的内容:', worldInfo);
+                }
             }
+            
+            // 使用提示词管理器构建消息
+            console.log('[提示词管理] 当前预设:', window.promptManager?.currentPresetName);
+            console.log('[提示词管理] 预设内容:', window.promptManager?.preset);
+            
+            finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings);
+            
+            // 输出调试信息
+            console.log('[提示词管理] 最终消息数:', finalMessages.length);
+            if (finalMessages[0] && finalMessages[0].role === 'system') {
+                console.log('[提示词管理] 系统提示词内容:', finalMessages[0].content.substring(0, 200));
+            }
+        } else {
+            // 兼容旧的世界书注入方式
+            if (typeof injectWorldBookContent === 'function') {
+                finalMessages = injectWorldBookContent(window.contextMessages);
+            }
+        }
+        
+        // 前端历史截取控制（与正常发送保持一致）
+        if (config.frontend_max_history && config.frontend_max_history > 0) {
+            let totalLength = 0;
+            let truncatedMessages = [];
+            
+            // 从后往前遍历消息，保留最新的消息
+            for (let i = finalMessages.length - 1; i >= 0; i--) {
+                const messageLength = JSON.stringify(finalMessages[i]).length;
+                if (totalLength + messageLength <= config.frontend_max_history) {
+                    truncatedMessages.unshift(finalMessages[i]);
+                    totalLength += messageLength;
+                } else if (i === 0 && truncatedMessages.length > 0) {
+                    // 如果是第一条消息（通常是系统提示），尽量保留
+                    truncatedMessages.unshift(finalMessages[i]);
+                    break;
+                } else {
+                    break;
+                }
+            }
+            
+            if (truncatedMessages.length < finalMessages.length) {
+                console.log(`[历史截取] 从${finalMessages.length}条消息截取到${truncatedMessages.length}条，总字符数: ${totalLength}`);
+                finalMessages = truncatedMessages;
+            }
+        }
+        
+        // 准备请求数据（与正常发送保持完全一致）
+        const requestData = {
+            messages: finalMessages,
+            model: config.model,
+            temperature: config.temperature || 1.0,
+            stream: config.streaming !== undefined ? config.streaming : true,
+            // AI参数
+            top_p: config.top_p || 1.0,
+            frequency_penalty: config.frequency_penalty || 0,
+            presence_penalty: config.presence_penalty || 0,
+            top_k: config.top_k,
+            repetition_penalty: config.repetition_penalty,
+            min_p: config.min_p,
+            top_a: config.top_a,
+            typical_p: config.typical_p
+        };
+        
+        // 智能滚动控制（与正常发送保持一致）
+        let autoScroll = true;
+        const scrollContainer = document.querySelector('.messages-container') || document.querySelector('.chat-container');
+        
+        const isAtBottom = () => {
+            if (!scrollContainer) return true;
+            return scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 10;
+        };
+        
+        const scrollHandler = () => {
+            autoScroll = isAtBottom();
+            console.log('[智能滚动]', autoScroll ? '保持自动滚动' : '用户已手动滚动，停止自动滚动');
+        };
+        
+        if (scrollContainer) {
+            scrollContainer.addEventListener('scroll', scrollHandler);
         }
         
         // 发送请求
@@ -2017,15 +2109,7 @@ window.regenerateMessage = async function(index) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                messages: contextMessages,
-                model: config.model,
-                temperature: config.temperature || 1.0,
-                top_p: config.top_p || 1.0,
-                frequency_penalty: config.frequency_penalty || 0,
-                presence_penalty: config.presence_penalty || 0,
-                stream: config.streaming !== false
-            }),
+            body: JSON.stringify(requestData),
             signal: currentAbortController.signal
         });
         
@@ -2033,15 +2117,68 @@ window.regenerateMessage = async function(index) {
             throw new Error(`API请求失败: ${response.status}`);
         }
         
-        // 添加AI消息到上下文
-        const newAssistantMessage = { role: 'assistant', content: '' };
-        window.contextMessages.push(newAssistantMessage);
-        const newMessageIndex = window.contextMessages.length - 1;
+        // 创建AI消息对象
+        const assistantMessage = { role: 'assistant', content: '' };
+        window.contextMessages.push(assistantMessage);
         
-        // 显示加载状态（像正常发送一样）
-        const loadingDiv = addMessageToChat('assistant', '', true);
+        // 移除加载动画，准备显示实际内容
+        if (loadingDiv) {
+            loadingDiv.remove();
+        }
         
-        // 处理响应
+        // 创建实际的消息元素（与正常发送保持一致）
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant-message';
+        
+        const messageInner = document.createElement('div');
+        messageInner.className = 'message-inner';
+        
+        const messageIndex = window.contextMessages.length - 1;
+        
+        messageInner.innerHTML = `
+            <div class="message-avatar">AI</div>
+            <div class="message-content">
+                <div class="message-text"></div>
+                <div class="message-actions">
+                    <button class="message-btn copy-btn" onclick="copyMessage(${messageIndex})" title="复制">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                    <button class="message-btn edit-btn" onclick="editMessage(${messageIndex})" title="编辑">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="message-btn regenerate-btn" onclick="regenerateMessage(${messageIndex})" title="重新生成">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                    </button>
+                    <button class="message-btn delete-btn" onclick="deleteMessage(${messageIndex})" title="删除">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        messageDiv.appendChild(messageInner);
+        
+        // 添加到消息容器
+        const messagesContainer = document.querySelector('.messages-container');
+        if (messagesContainer) {
+            messagesContainer.appendChild(messageDiv);
+        }
+        
+        const messageTextDiv = messageDiv.querySelector('.message-text');
+        
+        // 处理响应（流式或非流式）
         if (config.streaming !== false) {
             // 流式响应
             const reader = response.body.getReader();
@@ -2064,35 +2201,12 @@ window.regenerateMessage = async function(index) {
                         try {
                             const json = JSON.parse(data);
                             if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
-                                const chunk = json.choices[0].delta.content;
-                                newAssistantMessage.content += chunk;
-                                
-                                // 如果还没有创建消息div，先移除加载动画并创建
-                                if (loadingDiv && loadingDiv.parentNode) {
-                                    loadingDiv.remove();
-                                    const messageDiv = addMessageToChat('assistant', '', false);
-                                    window.regenerateMessageDiv = messageDiv;
-                                }
-                                
-                                // 增量更新内容（像正常发送一样）
-                                if (window.regenerateMessageDiv) {
-                                    const contentDiv = window.regenerateMessageDiv.querySelector('.message-content');
-                                    if (contentDiv) {
-                                        // 使用文本修饰器处理内容
-                                        let decoratedContent = newAssistantMessage.content;
-                                        if (window.textDecorator) {
-                                            if (window.currentCharacter) {
-                                                window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
-                                            }
-                                            if (window.getCurrentUserPersona) {
-                                                const persona = window.getCurrentUserPersona();
-                                                window.textDecorator.setVariable('user', persona.name || 'User');
-                                            }
-                                            decoratedContent = window.textDecorator.processMessage(newAssistantMessage.content, 'assistant');
-                                        } else {
-                                            decoratedContent = escapeHtml(newAssistantMessage.content).replace(/\n/g, '<br>');
-                                        }
-                                        contentDiv.innerHTML = decoratedContent;
+                                assistantMessage.content += json.choices[0].delta.content;
+                                // 增量更新消息内容（不重建整个列表）
+                                if (messageTextDiv) {
+                                    messageTextDiv.innerHTML = renderMarkdown(assistantMessage.content);
+                                    // 如果启用自动滚动，滚动到底部
+                                    if (autoScroll) {
                                         scrollToBottom();
                                     }
                                 }
@@ -2107,47 +2221,58 @@ window.regenerateMessage = async function(index) {
             // 非流式响应
             const data = await response.json();
             if (data.choices && data.choices[0] && data.choices[0].message) {
-                newAssistantMessage.content = data.choices[0].message.content;
-                
-                // 移除加载动画并显示完整消息
-                if (loadingDiv && loadingDiv.parentNode) {
-                    loadingDiv.remove();
+                assistantMessage.content = data.choices[0].message.content;
+                if (messageTextDiv) {
+                    messageTextDiv.innerHTML = renderMarkdown(assistantMessage.content);
+                    if (autoScroll) {
+                        scrollToBottom();
+                    }
                 }
-                addMessageToChat('assistant', newAssistantMessage.content);
             }
         }
         
-        // 清理临时变量
-        delete window.regenerateMessageDiv;
-        
-        // 触发HTML渲染器处理最终消息
-        if (window.htmlRenderer && window.htmlRenderer.config.enabled) {
-            setTimeout(() => {
-                window.htmlRenderer.processAllMessages();
-            }, 100);
+        // 移除滚动监听器
+        if (scrollContainer) {
+            scrollContainer.removeEventListener('scroll', scrollHandler);
         }
         
         // 保存对话
         await autoSaveChat();
         
+        // 记录AI日志（与正常发送保持一致）
+        console.log('[AI响应完成] 消息长度:', assistantMessage.content.length);
+        
     } catch (error) {
-        // 清理临时变量
-        delete window.regenerateMessageDiv;
-        
-        // 移除加载动画（如果存在）
-        const loadingDivToRemove = document.querySelector('.message.assistant-message .loading-dots');
-        if (loadingDivToRemove) {
-            const messageToRemove = loadingDivToRemove.closest('.message');
-            if (messageToRemove) {
-                messageToRemove.remove();
-            }
-        }
-        
         if (error.name === 'AbortError') {
-            console.log('重新生成已取消');
+            console.log('[用户中止] 重新生成已取消');
+            // 如果被中止，删除未完成的消息
+            if (window.contextMessages[window.contextMessages.length - 1]?.role === 'assistant' && 
+                window.contextMessages[window.contextMessages.length - 1]?.content === '') {
+                window.contextMessages.pop();
+            }
+            // 移除未完成的消息元素
+            const messagesContainer = document.querySelector('.messages-container');
+            if (messagesContainer) {
+                const lastMessage = messagesContainer.lastElementChild;
+                if (lastMessage && lastMessage.classList.contains('assistant-message')) {
+                    lastMessage.remove();
+                }
+            }
         } else {
             console.error('重新生成失败:', error);
             showToast('重新生成失败: ' + error.message, 'error');
+            // 删除失败的消息
+            if (window.contextMessages[window.contextMessages.length - 1]?.role === 'assistant') {
+                window.contextMessages.pop();
+            }
+            // 移除失败的消息元素
+            const messagesContainer = document.querySelector('.messages-container');
+            if (messagesContainer) {
+                const lastMessage = messagesContainer.lastElementChild;
+                if (lastMessage && lastMessage.classList.contains('assistant-message')) {
+                    lastMessage.remove();
+                }
+            }
         }
     } finally {
         // 重置状态
