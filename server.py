@@ -1061,6 +1061,50 @@ def delete_preset(preset_name):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ==================== 正则表达式脚本API ====================
+
+@app.route('/api/regex/load', methods=['GET'])
+def load_regex_scripts():
+    """加载正则表达式脚本"""
+    try:
+        filepath = os.path.join(DATA_DIR, 'regex_scripts.json')
+        
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return jsonify(data)
+        else:
+            # 返回默认空结构
+            return jsonify({
+                "global": [],
+                "character": {},
+                "allowed": []
+            })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/regex/save', methods=['POST'])
+def save_regex_scripts():
+    """保存正则表达式脚本"""
+    try:
+        data = request.json
+        
+        # 确保数据结构正确
+        if not isinstance(data, dict):
+            return jsonify({"error": "无效的数据格式"}), 400
+            
+        # 保存到文件
+        filepath = os.path.join(DATA_DIR, 'regex_scripts.json')
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "message": "正则脚本已保存"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # 加载已保存的配置
 config_path = os.path.join(DATA_DIR, 'config.json')
 if os.path.exists(config_path):

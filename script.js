@@ -150,18 +150,22 @@ window.toggleCharacterHeader = function(show) {
 
 // 移动端点击主内容区域关闭侧边栏
 function setupMobileSidebarClose() {
-    const mainContent = document.getElementById('mainContent');
-    const sidebar = document.getElementById('sidebar');
-    
-    // 添加点击事件监听
-    mainContent.addEventListener('click', function(e) {
+    // 使用document级别的事件监听，确保捕获所有点击
+    document.addEventListener('click', function(e) {
         // 只在移动端生效
         if (window.innerWidth <= 768) {
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.getElementById('menuToggle');
+            
             // 如果侧边栏是展开的
-            if (!sidebar.classList.contains('hidden')) {
-                // 检查点击是否在侧边栏区域外
-                const sidebarRect = sidebar.getBoundingClientRect();
-                if (e.clientX > sidebarRect.right) {
+            if (sidebar && !sidebar.classList.contains('hidden')) {
+                // 检查点击目标是否在侧边栏内
+                const clickedInsideSidebar = sidebar.contains(e.target);
+                // 检查是否点击了菜单按钮
+                const clickedMenuToggle = menuToggle && menuToggle.contains(e.target);
+                
+                // 如果点击的不是侧边栏内部，也不是菜单按钮，则关闭侧边栏
+                if (!clickedInsideSidebar && !clickedMenuToggle) {
                     closeSidebar();
                 }
             }
@@ -865,6 +869,16 @@ async function sendMessage() {
             if (assistantMessage) {
                 window.contextMessages.push({ role: 'assistant', content: assistantMessage });
                 updateHistoryDisplay();
+                
+                // 流式响应完成后，重新处理所有消息以确保深度正确
+                // 延迟一点确保DOM已更新
+                setTimeout(() => {
+                    if (window.htmlRenderer && window.htmlRenderer.config.enabled) {
+                        console.log('[流式完成] 重新处理所有消息，确保深度正确');
+                        // 使用processAllMessages会先清除旧的渲染，然后按深度重新渲染
+                        window.htmlRenderer.processAllMessages();
+                    }
+                }, 500); // 给一点时间让DOM完全更新
             }
         } else {
             // 非流式请求
@@ -1325,6 +1339,17 @@ async function autoSaveChat() {
             const data = await response.json();
             if (!currentChatId) {
                 currentChatId = data.chat_name;
+            }
+            
+            // 更新本地历史记录中的消息数量
+            const chatIndex = chatHistory.findIndex(chat => 
+                chat.chatId === currentChatId || chat.name === currentChatId
+            );
+            if (chatIndex !== -1) {
+                chatHistory[chatIndex].message_count = window.contextMessages.length;
+                chatHistory[chatIndex].messageCount = window.contextMessages.length;
+                // 立即更新显示
+                updateHistoryDisplay();
             }
         }
     } catch (error) {

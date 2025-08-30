@@ -95,6 +95,13 @@ class HtmlRenderer {
     }
     
     processMessageElement(messageElement, skipDepthCheck = false) {
+        // 确保消息在消息容器内
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer || !messagesContainer.contains(messageElement)) {
+            console.log('[HTML渲染器] 消息不在对话容器内，跳过处理');
+            return;
+        }
+        
         // 检查消息类型
         const isAssistant = messageElement.classList.contains('assistant-message');
         const isUser = messageElement.classList.contains('user-message');
@@ -142,6 +149,7 @@ class HtmlRenderer {
         
         // 创建容器
         const wrapper = document.createElement('div');
+        wrapper.className = 'html-render-wrapper'; // 添加类名
         wrapper.style.cssText = `
             position: relative;
             width: 100%;
@@ -369,12 +377,16 @@ ${finalHTML}
     
     // 检查消息是否在深度范围内
     isWithinDepth(messageElement) {
-        // 获取所有相关消息
+        // 只在对话容器内查找
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer) return false;
+        
+        // 获取所有相关消息 - 只在消息容器内
         const selector = this.config.includeUserMessages 
             ? '.message.assistant-message, .message.user-message'
             : '.message.assistant-message';
         
-        const allMessages = Array.from(document.querySelectorAll(selector));
+        const allMessages = Array.from(messagesContainer.querySelectorAll(selector));
         const messageIndex = allMessages.indexOf(messageElement);
         
         // 从最后一条开始计数
@@ -392,21 +404,42 @@ ${finalHTML}
         this.stopObserver();
         
         // 先清除现有的渲染
+        console.log('[HTML渲染器] 清除所有现有渲染...');
         this.clearAllIframes();
         
-        // 根据配置选择消息
+        // 只在对话容器内查找消息
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer) {
+            console.log('[HTML渲染器] 未找到消息容器，跳过处理');
+            if (wasObserving) {
+                this.startObserver();
+            }
+            return;
+        }
+        
+        // 根据配置选择消息 - 只在消息容器内查找
         const selector = this.config.includeUserMessages 
             ? '.message.assistant-message, .message.user-message'
             : '.message.assistant-message';
         
-        const allMessages = Array.from(document.querySelectorAll(selector));
+        const allMessages = Array.from(messagesContainer.querySelectorAll(selector));
         
         // 只处理最新的N条消息
         const messagesToProcess = allMessages.slice(-this.config.maxDepth);
         
         console.log(`[HTML渲染器] 总共${allMessages.length}条消息，处理最新的${messagesToProcess.length}条`);
         
-        messagesToProcess.forEach(msg => {
+        // 先标记所有消息为未渲染
+        allMessages.forEach(msg => {
+            const codeElements = msg.querySelectorAll('code[data-html-rendered]');
+            codeElements.forEach(code => {
+                delete code.dataset.htmlRendered;
+            });
+        });
+        
+        // 然后只处理深度内的消息
+        messagesToProcess.forEach((msg, index) => {
+            console.log(`[HTML渲染器] 处理第${index + 1}/${messagesToProcess.length}条消息`);
             this.processMessageElement(msg, true); // 跳过深度检查，因为已经筛选过了
         });
         
@@ -464,21 +497,37 @@ ${finalHTML}
     }
     
     clearAllIframes() {
-        // 移除所有渲染容器
-        document.querySelectorAll('.html-render-wrapper').forEach(wrapper => {
+        console.log('[HTML渲染器] 开始清除所有iframe...');
+        
+        // 只在对话容器内清除
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer) {
+            console.log('[HTML渲染器] 未找到消息容器，跳过清除');
+            return;
+        }
+        
+        // 移除消息容器内的所有渲染容器
+        const wrappers = messagesContainer.querySelectorAll('.html-render-wrapper');
+        console.log(`[HTML渲染器] 找到${wrappers.length}个渲染容器，正在移除...`);
+        wrappers.forEach(wrapper => {
             wrapper.remove();
         });
         
-        document.querySelectorAll('pre[data-hidden-by-renderer="true"]').forEach(pre => {
+        // 恢复消息容器内隐藏的pre标签
+        messagesContainer.querySelectorAll('pre[data-hidden-by-renderer="true"]').forEach(pre => {
             pre.style.display = '';
             delete pre.dataset.hiddenByRenderer;
         });
         
-        document.querySelectorAll('code[data-html-rendered="true"]').forEach(code => {
+        // 清除消息容器内的所有渲染标记
+        messagesContainer.querySelectorAll('code[data-html-rendered="true"]').forEach(code => {
             delete code.dataset.htmlRendered;
         });
         
+        // 清除iframe引用
         this.iframes.clear();
+        
+        console.log('[HTML渲染器] 清除完成');
     }
     
     // 获取配置

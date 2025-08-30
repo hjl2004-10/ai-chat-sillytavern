@@ -1,28 +1,36 @@
-# AI Chat System v2.3.0 🚀
+# AI Chat System v2.4.0 🚀
 
 [简体中文](./README.md) | English
 
 A smart AI chat system fully compatible with SillyTavern data format, supporting OpenAI-compatible API interfaces.
 
-## 🌟 Latest Updates (v2.3.0)
+## 🌟 Latest Updates (v2.4.0)
 
-### 🎆 New Features
-- 🌨️ **HTML Renderer**: Directly render and preview HTML content in chat interface
-  - Real-time HTML preview, instantly see webpage effects
-  - Sandboxed environment, safely execute JavaScript code
-  - Smart height adaptation, automatically adjusts based on content
-  - Support for interactive elements, buttons and forms work normally
-- 📱 **Mobile Optimization**: 
-  - Sidebar auto-closes when clicking blank area
-  - Fixed issue where mobile couldn't import jsonl files
-  - Input box height auto-adaptation optimization (max 500px)
+### 🎯 New Features
+- 🔄 **Regex Replacement System**: Powerful text processing capabilities
+  - Support for global and character-specific regex scripts
+  - Real-time testing and preview of replacement effects
+  - Support for capture groups and complex pattern matching
+  - Selectable application locations (input/output/display)
+  - Auto-save and manage regex script library
 
-### 🔧 Bug Fixes
-- Fixed export file format issue (unified to jsonl)
-- Fixed iframe height growing with clicks bug
-- Resolved HTML renderer height limitation issues
+### 🛠️ System Optimizations
+- **HTML Renderer Improvements**:
+  - Strictly limited rendering scope, only effective in chat area
+  - Fixed depth control, ensures rendering by set layers
+  - Optimized clearing mechanism, old renders auto-removed
+- **Interface Optimizations**:
+  - Fixed mobile sidebar click-to-close issue
+  - Regex script list display optimization (character limit + HTML escaping)
+  - Fixed real-time update issue with chat history count
 
-### v2.2.0 Updates
+### 🐛 Bug Fixes
+- Fixed HTML not immediately rendering after streaming response
+- Fixed content loss issue when switching chat history
+- Fixed HTML code block line wrap display issue
+- Prevented accidental HTML rendering in settings interface
+
+### v2.3.0 Updates
 
 ### 🔥 Important Fixes
 - 🔧 **Config File Issue Fixed**: Resolved the issue where configuration cannot be saved when accessing via IP on mobile

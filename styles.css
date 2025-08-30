@@ -1090,6 +1090,21 @@ body.dark {
     overflow-wrap: break-word;
 }
 
+/* HTML代码块样式 - 确保长代码换行 */
+.message-content pre.html-code-block {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.message-content pre.html-code-block code {
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+
 /* 停止模式的发送按钮 */
 .send-button.stop-mode {
     background-color: #000;

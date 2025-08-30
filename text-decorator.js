@@ -1,6 +1,8 @@
-// 文本修饰器模块 - 简化版
+// 文本修饰器模块 - 简化版（集成正则引擎）
 class TextDecorator {
     constructor() {
+        // 正则引擎集成
+        this.regexEnabled = true;
         // 变量缓存
         this.variables = {
             user: 'User',
@@ -165,12 +167,32 @@ class TextDecorator {
         return result;
     }
     
-    // 处理消息 - 变量替换 + 引号修饰 + 星号修饰
+    // 处理消息 - 正则处理 + 变量替换 + 引号修饰 + 星号修饰
     processMessage(text, role = 'assistant') {
         if (!text) return '';
         
-        // 1. 先进行变量替换（在HTML转义前）
-        let processed = this.replaceVariables(text);
+        // 0. 先应用正则表达式处理（最早执行，避免影响后续修饰）
+        let processed = text;
+        if (this.regexEnabled && window.regexEngine) {
+            const placement = role === 'user' ? 
+                window.regexEngine.PLACEMENT.USER_INPUT : 
+                window.regexEngine.PLACEMENT.AI_OUTPUT;
+            
+            const context = {
+                userName: this.variables.user,
+                charName: this.variables.char,
+                model: this.variables.model,
+                characterId: window.currentCharacter?.name || null,
+                isMarkdown: false,
+                isPrompt: false,
+                isEdit: false
+            };
+            
+            processed = window.regexEngine.processText(processed, placement, context);
+        }
+        
+        // 1. 然后进行变量替换（在HTML转义前）
+        processed = this.replaceVariables(processed);
         
         // 特殊处理：保护HTML代码块不被转义
         const htmlCodeBlocks = [];
@@ -210,6 +232,12 @@ class TextDecorator {
         });
         
         return processed;
+    }
+    
+    // 启用/禁用正则处理
+    toggleRegex(enabled) {
+        this.regexEnabled = enabled;
+        console.log(`[文本修饰器] 正则处理已${enabled ? '启用' : '禁用'}`);
     }
 }
 
