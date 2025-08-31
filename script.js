@@ -1959,44 +1959,14 @@ window.regenerateMessage = async function(index) {
         return;
     }
     
-    // 获取当前消息的DOM元素（用于后续复用）
-    const messagesContainer = document.querySelector('.messages-container');
-    let currentMessageDiv = null;
-    if (messagesContainer) {
-        const messages = messagesContainer.querySelectorAll('.message');
-        currentMessageDiv = messages[index]; // 保存当前要重新生成的消息元素
-    }
+    // 删除当前AI回复及之后的所有消息
+    window.contextMessages.splice(index);
     
-    // 删除当前AI回复的内容和之后的所有消息
-    const deletedCount = window.contextMessages.length - index - 1; // 不包括当前消息
-    if (deletedCount > 0) {
-        window.contextMessages.splice(index + 1); // 只删除当前消息之后的消息
-        
-        // 删除当前消息之后的DOM元素
-        if (messagesContainer) {
-            const messages = messagesContainer.querySelectorAll('.message');
-            for (let i = index + 1; i < messages.length; i++) {
-                if (messages[i]) {
-                    messages[i].remove();
-                }
-            }
-        }
-    }
+    // 刷新显示（删除旧消息）
+    refreshChatDisplay();
     
-    // 清空当前消息的内容（但保留消息对象）
-    window.contextMessages[index].content = '';
-    
-    // 在当前消息元素中显示加载动画
-    if (currentMessageDiv) {
-        const messageContent = currentMessageDiv.querySelector('.message-content');
-        if (messageContent) {
-            const messageText = messageContent.querySelector('.message-text');
-            if (messageText) {
-                // 显示加载动画
-                messageText.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
-            }
-        }
-    }
+    // 添加加载状态
+    const loadingDiv = addMessageToChat('assistant', '', true);
     
     // 滚动到底部
     scrollToBottom();
@@ -2137,22 +2107,16 @@ window.regenerateMessage = async function(index) {
             throw new Error(`API请求失败: ${response.status}`);
         }
         
-        // 复用当前的消息对象（不创建新的）
-        const assistantMessage = window.contextMessages[index];
-        assistantMessage.content = ''; // 清空内容，准备接收新的响应
+        // 移除加载动画，创建新的AI消息
+        loadingDiv.remove();
+        const messageDiv = addMessageToChat('assistant', '', false);
+        const messageInner = messageDiv.querySelector('.message-inner');
+        const contentDiv = messageInner.querySelector('.message-content');
+        const messageTextDiv = contentDiv.querySelector('.message-text');
         
-        // 获取当前消息元素中的文本区域
-        let messageTextDiv = null;
-        if (currentMessageDiv) {
-            const messageContent = currentMessageDiv.querySelector('.message-content');
-            if (messageContent) {
-                messageTextDiv = messageContent.querySelector('.message-text');
-                // 移除加载动画，准备显示实际内容
-                if (messageTextDiv) {
-                    messageTextDiv.innerHTML = '';
-                }
-            }
-        }
+        // 添加新的AI消息到上下文
+        const assistantMessage = { role: 'assistant', content: '' };
+        window.contextMessages.push(assistantMessage);
         
         // 处理响应（流式或非流式）
         if (config.streaming !== false) {
@@ -2178,8 +2142,8 @@ window.regenerateMessage = async function(index) {
                             const json = JSON.parse(data);
                             if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
                                 assistantMessage.content += json.choices[0].delta.content;
-                                // 增量更新消息内容（不重建整个列表）
-                                if (messageTextDiv) {
+                                // 增量更新消息内容
+                                if (contentDiv) {
                                     // 使用文本修饰器处理消息内容
                                     if (window.textDecorator) {
                                         // 设置变量值
@@ -2190,9 +2154,9 @@ window.regenerateMessage = async function(index) {
                                             const persona = window.getCurrentUserPersona();
                                             window.textDecorator.setVariable('user', persona.name || 'User');
                                         }
-                                        messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
+                                        contentDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
                                     } else {
-                                        messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
+                                        contentDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
                                     }
                                     // 如果启用自动滚动，滚动到底部
                                     if (autoScroll) {
@@ -2211,7 +2175,7 @@ window.regenerateMessage = async function(index) {
             const data = await response.json();
             if (data.choices && data.choices[0] && data.choices[0].message) {
                 assistantMessage.content = data.choices[0].message.content;
-                if (messageTextDiv) {
+                if (contentDiv) {
                     // 使用文本修饰器处理消息内容
                     if (window.textDecorator) {
                         // 设置变量值
@@ -2222,9 +2186,9 @@ window.regenerateMessage = async function(index) {
                             const persona = window.getCurrentUserPersona();
                             window.textDecorator.setVariable('user', persona.name || 'User');
                         }
-                        messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
+                        contentDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
                     } else {
-                        messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
+                        contentDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
                     }
                     if (autoScroll) {
                         scrollToBottom();
@@ -2245,38 +2209,16 @@ window.regenerateMessage = async function(index) {
         console.log('[AI响应完成] 消息长度:', assistantMessage.content.length);
         
     } catch (error) {
+        // 移除加载动画
+        if (loadingDiv && loadingDiv.parentNode) {
+            loadingDiv.remove();
+        }
+        
         if (error.name === 'AbortError') {
             console.log('[用户中止] 重新生成已取消');
-            // 如果被中止，显示中止消息
-            const abortedMsg = assistantMessage.content || '';
-            if (abortedMsg) {
-                assistantMessage.content = abortedMsg + '\n\n[生成已被用户中止]';
-            } else {
-                assistantMessage.content = '[生成已被用户中止]';
-            }
-            // 更新显示
-            if (messageTextDiv) {
-                if (window.textDecorator) {
-                    if (window.currentCharacter) {
-                        window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
-                    }
-                    if (window.getCurrentUserPersona) {
-                        const persona = window.getCurrentUserPersona();
-                        window.textDecorator.setVariable('user', persona.name || 'User');
-                    }
-                    messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
-                } else {
-                    messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
-                }
-            }
         } else {
             console.error('重新生成失败:', error);
             showToast('重新生成失败: ' + error.message, 'error');
-            // 显示错误消息
-            assistantMessage.content = `[重新生成失败: ${error.message}]`;
-            if (messageTextDiv) {
-                messageTextDiv.innerHTML = `<span style="color: red;">${escapeHtml(assistantMessage.content)}</span>`;
-            }
         }
     } finally {
         // 重置状态
