@@ -2204,7 +2204,20 @@ window.regenerateMessage = async function(index) {
                                 assistantMessage.content += json.choices[0].delta.content;
                                 // 增量更新消息内容（不重建整个列表）
                                 if (messageTextDiv) {
-                                    messageTextDiv.innerHTML = renderMarkdown(assistantMessage.content);
+                                    // 使用文本修饰器处理消息内容
+                                    if (window.textDecorator) {
+                                        // 设置变量值
+                                        if (window.currentCharacter) {
+                                            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                                        }
+                                        if (window.getCurrentUserPersona) {
+                                            const persona = window.getCurrentUserPersona();
+                                            window.textDecorator.setVariable('user', persona.name || 'User');
+                                        }
+                                        messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
+                                    } else {
+                                        messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
+                                    }
                                     // 如果启用自动滚动，滚动到底部
                                     if (autoScroll) {
                                         scrollToBottom();
@@ -2223,7 +2236,20 @@ window.regenerateMessage = async function(index) {
             if (data.choices && data.choices[0] && data.choices[0].message) {
                 assistantMessage.content = data.choices[0].message.content;
                 if (messageTextDiv) {
-                    messageTextDiv.innerHTML = renderMarkdown(assistantMessage.content);
+                    // 使用文本修饰器处理消息内容
+                    if (window.textDecorator) {
+                        // 设置变量值
+                        if (window.currentCharacter) {
+                            window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                        }
+                        if (window.getCurrentUserPersona) {
+                            const persona = window.getCurrentUserPersona();
+                            window.textDecorator.setVariable('user', persona.name || 'User');
+                        }
+                        messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
+                    } else {
+                        messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
+                    }
                     if (autoScroll) {
                         scrollToBottom();
                     }
