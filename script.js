@@ -1959,24 +1959,44 @@ window.regenerateMessage = async function(index) {
         return;
     }
     
-    // 删除当前AI回复及之后的所有消息
-    const deletedCount = window.contextMessages.length - index;
-    window.contextMessages.splice(index);
-    
-    // 只删除对应的DOM元素，不重建整个列表
+    // 获取当前消息的DOM元素（用于后续复用）
     const messagesContainer = document.querySelector('.messages-container');
+    let currentMessageDiv = null;
     if (messagesContainer) {
         const messages = messagesContainer.querySelectorAll('.message');
-        // 删除从index开始的所有消息元素
-        for (let i = messages.length - deletedCount; i < messages.length; i++) {
-            if (messages[i]) {
-                messages[i].remove();
+        currentMessageDiv = messages[index]; // 保存当前要重新生成的消息元素
+    }
+    
+    // 删除当前AI回复的内容和之后的所有消息
+    const deletedCount = window.contextMessages.length - index - 1; // 不包括当前消息
+    if (deletedCount > 0) {
+        window.contextMessages.splice(index + 1); // 只删除当前消息之后的消息
+        
+        // 删除当前消息之后的DOM元素
+        if (messagesContainer) {
+            const messages = messagesContainer.querySelectorAll('.message');
+            for (let i = index + 1; i < messages.length; i++) {
+                if (messages[i]) {
+                    messages[i].remove();
+                }
             }
         }
     }
     
-    // 显示加载状态（使用与正常发送一致的方法）
-    const loadingDiv = addMessageToChat('assistant', '', true);
+    // 清空当前消息的内容（但保留消息对象）
+    window.contextMessages[index].content = '';
+    
+    // 在当前消息元素中显示加载动画
+    if (currentMessageDiv) {
+        const messageContent = currentMessageDiv.querySelector('.message-content');
+        if (messageContent) {
+            const messageText = messageContent.querySelector('.message-text');
+            if (messageText) {
+                // 显示加载动画
+                messageText.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
+            }
+        }
+    }
     
     // 滚动到底部
     scrollToBottom();
@@ -2117,66 +2137,22 @@ window.regenerateMessage = async function(index) {
             throw new Error(`API请求失败: ${response.status}`);
         }
         
-        // 创建AI消息对象
-        const assistantMessage = { role: 'assistant', content: '' };
-        window.contextMessages.push(assistantMessage);
+        // 复用当前的消息对象（不创建新的）
+        const assistantMessage = window.contextMessages[index];
+        assistantMessage.content = ''; // 清空内容，准备接收新的响应
         
-        // 移除加载动画，准备显示实际内容
-        if (loadingDiv) {
-            loadingDiv.remove();
+        // 获取当前消息元素中的文本区域
+        let messageTextDiv = null;
+        if (currentMessageDiv) {
+            const messageContent = currentMessageDiv.querySelector('.message-content');
+            if (messageContent) {
+                messageTextDiv = messageContent.querySelector('.message-text');
+                // 移除加载动画，准备显示实际内容
+                if (messageTextDiv) {
+                    messageTextDiv.innerHTML = '';
+                }
+            }
         }
-        
-        // 创建实际的消息元素（与正常发送保持一致）
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message assistant-message';
-        
-        const messageInner = document.createElement('div');
-        messageInner.className = 'message-inner';
-        
-        const messageIndex = window.contextMessages.length - 1;
-        
-        messageInner.innerHTML = `
-            <div class="message-avatar">AI</div>
-            <div class="message-content">
-                <div class="message-text"></div>
-                <div class="message-actions">
-                    <button class="message-btn copy-btn" onclick="copyMessage(${messageIndex})" title="复制">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                        </svg>
-                    </button>
-                    <button class="message-btn edit-btn" onclick="editMessage(${messageIndex})" title="编辑">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                    </button>
-                    <button class="message-btn regenerate-btn" onclick="regenerateMessage(${messageIndex})" title="重新生成">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                        </svg>
-                    </button>
-                    <button class="message-btn delete-btn" onclick="deleteMessage(${messageIndex})" title="删除">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        messageDiv.appendChild(messageInner);
-        
-        // 添加到消息容器
-        const messagesContainer = document.querySelector('.messages-container');
-        if (messagesContainer) {
-            messagesContainer.appendChild(messageDiv);
-        }
-        
-        const messageTextDiv = messageDiv.querySelector('.message-text');
         
         // 处理响应（流式或非流式）
         if (config.streaming !== false) {
@@ -2271,33 +2247,35 @@ window.regenerateMessage = async function(index) {
     } catch (error) {
         if (error.name === 'AbortError') {
             console.log('[用户中止] 重新生成已取消');
-            // 如果被中止，删除未完成的消息
-            if (window.contextMessages[window.contextMessages.length - 1]?.role === 'assistant' && 
-                window.contextMessages[window.contextMessages.length - 1]?.content === '') {
-                window.contextMessages.pop();
+            // 如果被中止，显示中止消息
+            const abortedMsg = assistantMessage.content || '';
+            if (abortedMsg) {
+                assistantMessage.content = abortedMsg + '\n\n[生成已被用户中止]';
+            } else {
+                assistantMessage.content = '[生成已被用户中止]';
             }
-            // 移除未完成的消息元素
-            const messagesContainer = document.querySelector('.messages-container');
-            if (messagesContainer) {
-                const lastMessage = messagesContainer.lastElementChild;
-                if (lastMessage && lastMessage.classList.contains('assistant-message')) {
-                    lastMessage.remove();
+            // 更新显示
+            if (messageTextDiv) {
+                if (window.textDecorator) {
+                    if (window.currentCharacter) {
+                        window.textDecorator.setVariable('char', window.currentCharacter.name || 'Assistant');
+                    }
+                    if (window.getCurrentUserPersona) {
+                        const persona = window.getCurrentUserPersona();
+                        window.textDecorator.setVariable('user', persona.name || 'User');
+                    }
+                    messageTextDiv.innerHTML = window.textDecorator.processMessage(assistantMessage.content, 'assistant');
+                } else {
+                    messageTextDiv.innerHTML = escapeHtml(assistantMessage.content).replace(/\n/g, '<br>');
                 }
             }
         } else {
             console.error('重新生成失败:', error);
             showToast('重新生成失败: ' + error.message, 'error');
-            // 删除失败的消息
-            if (window.contextMessages[window.contextMessages.length - 1]?.role === 'assistant') {
-                window.contextMessages.pop();
-            }
-            // 移除失败的消息元素
-            const messagesContainer = document.querySelector('.messages-container');
-            if (messagesContainer) {
-                const lastMessage = messagesContainer.lastElementChild;
-                if (lastMessage && lastMessage.classList.contains('assistant-message')) {
-                    lastMessage.remove();
-                }
+            // 显示错误消息
+            assistantMessage.content = `[重新生成失败: ${error.message}]`;
+            if (messageTextDiv) {
+                messageTextDiv.innerHTML = `<span style="color: red;">${escapeHtml(assistantMessage.content)}</span>`;
             }
         }
     } finally {
