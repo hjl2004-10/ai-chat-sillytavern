@@ -490,7 +490,7 @@ MIT License - 自由使用和修改
 ## 🙏 致谢
 
 - SillyTavern 项目提供的数据格式规范
-- OpenAI 提供的 API 接口标准
+- OpenAI 提供的 API 接口标准和open-web-ui界面示例
 - 所有贡献者和用户的支持
 
 ---
