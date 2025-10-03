@@ -39,32 +39,88 @@ window.showAISettingsPanel = function() {
             <!-- API设置 -->
             <div class="settings-section">
                 <h3>API设置</h3>
-                
+
                 <div class="setting-item">
                     <label>
                         <span class="setting-label">API地址</span>
                     </label>
-                    <input type="text" id="api-url" class="text-input" value="${config.api_url || 'https://api.openai.com/v1'}" 
+                    <input type="text" id="api-url" class="text-input" value="${config.api_url || 'https://api.openai.com/v1'}"
                            placeholder="https://api.openai.com/v1" onchange="updateAPIConfig('api_url', this.value)">
                     <div class="setting-hint">OpenAI兼容的API地址</div>
                 </div>
-                
+
                 <div class="setting-item">
                     <label>
                         <span class="setting-label">API密钥</span>
                     </label>
-                    <input type="password" id="api-key" class="text-input" value="${config.api_key || ''}" 
+                    <input type="password" id="api-key" class="text-input" value="${config.api_key || ''}"
                            placeholder="sk-..." onchange="updateAPIConfig('api_key', this.value)">
                     <div class="setting-hint">你的API密钥</div>
                 </div>
-                
+            </div>
+
+            <!-- 识图API设置 -->
+            <div class="settings-section">
+                <h3>识图API设置（用于工具书）</h3>
+
+                <div class="setting-item">
+                    <label>
+                        <span class="setting-label">识图API地址</span>
+                    </label>
+                    <input type="text" id="vision-api-base" class="text-input" value="${config.vision_api_base || 'https://api.yuegle.com'}"
+                           placeholder="https://api.yuegle.com" onchange="updateAPIConfig('vision_api_base', this.value)">
+                    <div class="setting-hint">支持视觉识别的API基础地址</div>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <span class="setting-label">识图API路径</span>
+                    </label>
+                    <input type="text" id="vision-api-path" class="text-input" value="${config.vision_api_path || '/v1/chat/completions'}"
+                           placeholder="/v1/chat/completions" onchange="updateAPIConfig('vision_api_path', this.value)">
+                    <div class="setting-hint">API端点路径</div>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <span class="setting-label">识图API密钥</span>
+                    </label>
+                    <input type="password" id="vision-api-key" class="text-input" value="${config.vision_api_key || ''}"
+                           placeholder="sk-..." onchange="updateAPIConfig('vision_api_key', this.value)">
+                    <div class="setting-hint">识图API的密钥（留空则使用上方的API密钥）</div>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <span class="setting-label">识图模型</span>
+                    </label>
+                    <input type="text" id="vision-model" class="text-input" value="${config.vision_model || 'claude-sonnet-4-5-20250929'}"
+                           placeholder="claude-sonnet-4-5-20250929" onchange="updateAPIConfig('vision_model', this.value)">
+                    <div class="setting-hint">支持视觉的模型名称</div>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <span class="setting-label">识图提示词</span>
+                    </label>
+                    <textarea id="vision-prompt" class="text-input" rows="3"
+                              onchange="updateAPIConfig('vision_prompt', this.value)"
+                              placeholder="请简要描述这张图片的主要内容和显著细节，并用中文回答，尽量一句话说完。">${config.vision_prompt || '请简要描述这张图片的主要内容和显著细节，并用中文回答，尽量一句话说完。'}</textarea>
+                    <div class="setting-hint">识别图片时使用的提示词</div>
+                </div>
+            </div>
+
+            <!-- 历史控制 -->
+            <div class="settings-section">
+                <h3>历史控制</h3>
+
                 <div class="setting-item">
                     <label>
                         <span class="setting-label">历史截取长度</span>
                         <span class="setting-value" id="frontend-history-value">${config.frontend_max_history || 65536}字符</span>
                     </label>
-                    <input type="range" id="frontend-max-history" min="5000" max="200000" step="1000" 
-                           value="${config.frontend_max_history || 65536}" 
+                    <input type="range" id="frontend-max-history" min="5000" max="200000" step="1000"
+                           value="${config.frontend_max_history || 65536}"
                            oninput="updateSetting('frontend_max_history', parseInt(this.value), 'frontend-history-value', '字符')">
                     <div class="setting-hint">发送给AI的历史消息最大字符数（前端控制）</div>
                 </div>

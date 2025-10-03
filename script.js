@@ -550,6 +550,52 @@ window.saveSettingsFromModal = function() {
     modal.remove();
 };
 
+// 构建工具书注入数据
+function buildToolBookPromptData(messages) {
+    if (!window.toolBookManager || typeof window.toolBookManager.getActivatedEntries !== 'function') {
+        return null;
+    }
+
+    try {
+        console.log('[工具书] 检查触发条目...');
+        const triggeredEntries = window.toolBookManager.getActivatedEntries(messages || []);
+        console.log('[工具书] 触发条目:', triggeredEntries);
+
+        if (!Array.isArray(triggeredEntries) || triggeredEntries.length === 0) {
+            return null;
+        }
+
+        const beforeSegments = [];
+        const afterSegments = [];
+
+        triggeredEntries.forEach(entry => {
+            const displayName = entry?.displayName || entry?.keyword || '';
+            const header = displayName ? `【工具书】${displayName}` : '【工具书】';
+            const body = entry?.content || '';
+            const segment = `${header}
+${body}`.trim();
+
+            if ((entry?.position || 'before') === 'after') {
+                afterSegments.push(segment);
+            } else {
+                beforeSegments.push(segment);
+            }
+        });
+
+        const payload = {
+            before: beforeSegments.join('\n\n'),
+            after: afterSegments.join('\n\n'),
+            entries: triggeredEntries
+        };
+
+        console.log('[工具书] 将注入的内容:', payload);
+        return payload;
+    } catch (error) {
+        console.error('[工具书] 触发处理失败:', error);
+        return null;
+    }
+}
+
 // 发送消息
 async function sendMessage() {
     // 如果正在发送中，执行停止操作
@@ -574,37 +620,20 @@ async function sendMessage() {
     
     // 添加用户消息到界面
     addMessageToChat('user', message);
-    
+
     // 添加到上下文
     window.contextMessages.push({ role: 'user', content: message });
-    
+
     // 立即滚动到底部
     scrollToBottom();
-    
-    // 如果是新对话的第一条消息，立即添加到历史列表
-    if (window.contextMessages.length === 1 || 
-        (window.contextMessages.length === 2 && window.contextMessages[0].role === 'assistant')) {
-        // 确保新对话在历史列表中
-        if (!chatHistory.find(chat => chat.chatId === currentChatId || chat.name === currentChatId)) {
-            const charName = window.currentCharacter ? window.currentCharacter.name : 'default';
-            const newChat = {
-                chatId: currentChatId,
-                name: currentChatId,
-                character: charName,
-                title: message.substring(0, 30) + (message.length > 30 ? '...' : ''),
-                preview: message,
-                timestamp: new Date().toISOString(),
-                messageCount: 1
-            };
-            chatHistory.unshift(newChat); // 添加到列表顶部
-            if (chatHistory.length > 20) {
-                chatHistory.pop(); // 限制历史记录数量
-            }
-            // 不使用localStorage保存
-        }
+
+    // 确保有currentChatId和标题
+    if (!currentChatId) {
+        currentChatId = `chat_${Date.now()}`;
     }
-    
-    updateHistoryDisplay();
+    if (!currentChatTitle || currentChatTitle === '新对话') {
+        currentChatTitle = message.substring(0, 30) + (message.length > 30 ? '...' : '');
+    }
     
     // 构建完整的提示词和消息
     let finalMessages = window.contextMessages;
@@ -640,11 +669,12 @@ async function sendMessage() {
             }
         }
         
+        const toolBookData = buildToolBookPromptData(window.contextMessages);
         // 使用提示词管理器构建消息（新的对话补全格式）
         console.log('[提示词管理] 当前预设:', window.promptManager?.currentPresetName);
         console.log('[提示词管理] 预设内容:', window.promptManager?.preset);
         
-        finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings);
+        finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings, toolBookData);
         
         // 输出调试信息
         console.log('[提示词管理] 最终消息数:', finalMessages.length);
@@ -817,8 +847,9 @@ async function sendMessage() {
                                             const persona = window.getCurrentUserPersona();
                                             window.textDecorator.setVariable('user', persona.name || 'User');
                                         }
-                                        // 使用处理后的HTML
-                                        contentDiv.innerHTML = window.textDecorator.processMessage(assistantMessage, 'assistant');
+                                        // 使用处理后的HTML（流式生成时，消息索引是当前数组长度）
+                                        const streamingIndex = window.contextMessages.length;
+                                        contentDiv.innerHTML = window.textDecorator.processMessage(assistantMessage, 'assistant', streamingIndex);
                                     } else {
                                         contentDiv.innerHTML = escapeHtml(assistantMessage).replace(/\n/g, '<br>');
                                     }
@@ -966,7 +997,7 @@ function updateSendButton(isSending) {
 }
 
 // 添加消息到聊天界面 - ChatGPT风格
-function addMessageToChat(role, content, isLoading = false) {
+function addMessageToChat(role, content, isLoading = false, messageData = null) {
     // 移除欢迎界面
     const welcomeSection = document.querySelector('.welcome-section');
     if (welcomeSection) {
@@ -1003,20 +1034,27 @@ function addMessageToChat(role, content, isLoading = false) {
             </div>
         `;
     } else {
-        // 查找这条消息在window.contextMessages中的正确索引
+        // 确定消息索引：
+        // 1. 如果消息已在数组中（通过refreshChatDisplay或loadHistoryChat调用），使用实际索引
+        // 2. 如果消息还没在数组中（用户刚发送或AI正在生成），索引应该是即将添加的位置
         let messageIndex = -1;
-        for (let i = window.contextMessages.length - 1; i >= 0; i--) {
-            if (window.contextMessages[i].content === content && window.contextMessages[i].role === role) {
+
+        // 从前往后查找第一个匹配的消息（确保找到正确的索引）
+        for (let i = 0; i < window.contextMessages.length; i++) {
+            if (window.contextMessages[i].role === role && window.contextMessages[i].content === content) {
                 messageIndex = i;
-                break;
+                break; // 找到第一个匹配就停止
             }
         }
-        
-        // 如果找不到（比如新消息），使用length-1（假设消息刚被添加）
+
+        // 如果找不到，说明消息即将被添加（用户消息或新的AI消息）
+        // 索引应该是数组的当前长度（即将添加的位置）
         if (messageIndex === -1) {
-            messageIndex = Math.max(0, window.contextMessages.length - 1);
+            messageIndex = window.contextMessages.length;
         }
-        
+
+        console.log(`[消息索引] role=${role}, 找到索引=${messageIndex}, 数组长度=${window.contextMessages.length}`);
+
         // 处理消息内容
         let decoratedContent = content;
         
@@ -1031,7 +1069,7 @@ function addMessageToChat(role, content, isLoading = false) {
                 window.textDecorator.setVariable('user', persona.name || 'User');
             }
             // 处理消息（包含HTML转义、变量替换、引号修饰）
-            decoratedContent = window.textDecorator.processMessage(content, role);
+            decoratedContent = window.textDecorator.processMessage(content, role, messageIndex);
         } else {
             // 如果没有修饰器，只做HTML转义和换行
             decoratedContent = escapeHtml(content).replace(/\n/g, '<br>');
@@ -1065,6 +1103,21 @@ function addMessageToChat(role, content, isLoading = false) {
             </div>
             <div class="message-body">
                 <div class="message-content" data-index="${messageIndex}">${decoratedContent}</div>
+                ${messageData && messageData.swipes && messageData.swipes.length > 1 ? `
+                <div class="swipe-controls">
+                    <button class="swipe-btn swipe-left" onclick="swipeMessage(${messageIndex}, -1)" title="上一个开场白">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <span class="swipe-counter">${(messageData.swipe_id || 0) + 1} / ${messageData.swipes.length}</span>
+                    <button class="swipe-btn swipe-right" onclick="swipeMessage(${messageIndex}, 1)" title="下一个开场白">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                ` : ''}
             </div>
         `;
     }
@@ -1086,46 +1139,59 @@ function addMessageToChat(role, content, isLoading = false) {
 
 // 开始新对话
 function startNewChat() {
-    // 保存当前对话（如果有内容）
+    // 保存当前对话(如果有内容)
     if (window.contextMessages.length > 0) {
         saveChatToHistory();
     }
-    
+
     // 清空当前对话
     window.contextMessages = [];
     currentChatId = null;
     currentChatTitle = '新对话';
-    
-    // 如果有角色卡被选中，添加角色的初始消息
+
+    // 如果有角色卡被选中,添加角色的初始消息
     if (window.currentCharacter) {
-        // 添加角色的第一条消息（如果有的话）
-        if (window.currentCharacter.first_mes) {
-            window.contextMessages.push({
+        // 获取正确的字段(优先从data里取,兼容spec_v3格式)
+        const first_mes = window.currentCharacter.first_mes || window.currentCharacter.data?.first_mes;
+        const alternate_greetings = window.currentCharacter.alternate_greetings || window.currentCharacter.data?.alternate_greetings;
+
+        // 添加角色的第一条消息(如果有的话)
+        if (first_mes) {
+            const message = {
                 role: 'assistant',
-                content: window.currentCharacter.first_mes
-            });
+                content: first_mes,
+                swipe_id: 0,  // 当前显示的开场白索引
+                swipes: [first_mes]  // 所有可用的开场白
+            };
+
+            // 如果有备用开场白,添加到swipes数组
+            if (alternate_greetings && alternate_greetings.length > 0) {
+                message.swipes.push(...alternate_greetings);
+            }
+
+            window.contextMessages.push(message);
         }
-        
-        // 注意：系统提示会在发送消息时通过 Prompt Manager 动态构建
+
+        // 注意:系统提示会在发送消息时通过 Prompt Manager 动态构建
         // 不在这里硬编码任何系统提示
     }
-    
+
     // 清空聊天界面
     const messagesContainer = document.querySelector('.messages-container');
     if (messagesContainer) {
         messagesContainer.remove();
     }
-    
+
     // 更新角色标题栏
     updateChatHeader();
-    
-    // 如果有角色的初始消息，显示它
+
+    // 如果有角色的初始消息,显示它
     if (window.contextMessages.length > 0) {
         // 显示角色的初始消息
         window.contextMessages.forEach(msg => {
-            addMessageToChat(msg.role, msg.content);
+            addMessageToChat(msg.role, msg.content, false, msg);
         });
-        
+
         // 显示初始消息后滚动到底部
         setTimeout(() => {
             scrollToBottom();
@@ -1301,7 +1367,7 @@ async function autoSaveChat() {
         currentChatId = `chat_${Date.now()}`;
     }
     
-    // 如果是新对话（不在历史列表中），立即添加到历史列表
+    // 如果是新对话(不在历史列表中),立即添加到历史列表顶部
     if (!chatHistory.find(chat => chat.chatId === currentChatId || chat.name === currentChatId)) {
         const newChat = {
             chatId: currentChatId,
@@ -1310,9 +1376,11 @@ async function autoSaveChat() {
             title: currentChatTitle || '新对话',
             preview: window.contextMessages[0]?.content || '',
             timestamp: new Date().toISOString(),
-            messageCount: window.contextMessages.length
+            messageCount: window.contextMessages.length,
+            message_count: window.contextMessages.length  // 添加message_count确保显示正确
         };
-        chatHistory.push(newChat);
+        chatHistory.unshift(newChat);  // 使用unshift添加到数组开头
+        console.log('[自动保存] 新对话已添加到历史列表:', currentChatId, '消息数:', window.contextMessages.length);
         // 立即更新历史显示
         updateHistoryDisplay();
     }
@@ -1342,14 +1410,17 @@ async function autoSaveChat() {
             }
             
             // 更新本地历史记录中的消息数量
-            const chatIndex = chatHistory.findIndex(chat => 
+            const chatIndex = chatHistory.findIndex(chat =>
                 chat.chatId === currentChatId || chat.name === currentChatId
             );
             if (chatIndex !== -1) {
                 chatHistory[chatIndex].message_count = window.contextMessages.length;
                 chatHistory[chatIndex].messageCount = window.contextMessages.length;
+                console.log('[自动保存] 对话消息数已更新:', currentChatId, '消息数:', window.contextMessages.length);
                 // 立即更新显示
                 updateHistoryDisplay();
+            } else {
+                console.warn('[自动保存] 未在本地历史中找到对话:', currentChatId);
             }
         }
     } catch (error) {
@@ -1883,11 +1954,13 @@ window.saveEditedMessage = function(index) {
     
     const newContent = textarea.value.trim();
     if (newContent) {
-        // 更新消息
+        // 更新消息数组
         window.contextMessages[index].content = newContent;
-        
-        // 恢复显示 - 使用文本修饰器
+
+        // 恢复显示 - 使用文本修饰器，但保留data-index属性
         const role = window.contextMessages[index].role;
+        let decoratedContent;
+
         if (window.textDecorator) {
             // 设置变量值
             if (window.currentCharacter) {
@@ -1897,11 +1970,15 @@ window.saveEditedMessage = function(index) {
                 const persona = window.getCurrentUserPersona();
                 window.textDecorator.setVariable('user', persona.name || 'User');
             }
-            messageContent.innerHTML = window.textDecorator.processMessage(newContent, role);
+            decoratedContent = window.textDecorator.processMessage(newContent, role);
         } else {
-            messageContent.innerHTML = escapeHtml(newContent).replace(/\n/g, '<br>');
+            decoratedContent = escapeHtml(newContent).replace(/\n/g, '<br>');
         }
-        
+
+        // 恢复HTML内容，同时保留data-index属性
+        messageContent.innerHTML = decoratedContent;
+        messageContent.setAttribute('data-index', index); // 确保data-index不会丢失
+
         // 自动保存
         autoSaveChat();
         showToast('消息已更新', 'success');
@@ -1912,8 +1989,10 @@ window.saveEditedMessage = function(index) {
 window.cancelEditMessage = function(index) {
     const messageContent = document.querySelector(`.message-content[data-index="${index}"]`);
     const message = window.contextMessages[index];
-    
-    // 恢复原内容 - 使用文本修饰器
+
+    // 恢复原内容 - 使用文本修饰器，但保留data-index属性
+    let decoratedContent;
+
     if (window.textDecorator) {
         // 设置变量值
         if (window.currentCharacter) {
@@ -1923,10 +2002,14 @@ window.cancelEditMessage = function(index) {
             const persona = window.getCurrentUserPersona();
             window.textDecorator.setVariable('user', persona.name || 'User');
         }
-        messageContent.innerHTML = window.textDecorator.processMessage(message.content, message.role);
+        decoratedContent = window.textDecorator.processMessage(message.content, message.role);
     } else {
-        messageContent.innerHTML = escapeHtml(message.content).replace(/\n/g, '<br>');
+        decoratedContent = escapeHtml(message.content).replace(/\n/g, '<br>');
     }
+
+    // 恢复HTML内容，同时保留data-index属性
+    messageContent.innerHTML = decoratedContent;
+    messageContent.setAttribute('data-index', index); // 确保data-index不会丢失
 };
 
 // 删除消息
@@ -2014,11 +2097,12 @@ window.regenerateMessage = async function(index) {
                 }
             }
             
+            const toolBookData = buildToolBookPromptData(window.contextMessages);
             // 使用提示词管理器构建消息
             console.log('[提示词管理] 当前预设:', window.promptManager?.currentPresetName);
             console.log('[提示词管理] 预设内容:', window.promptManager?.preset);
             
-            finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings);
+            finalMessages = buildPromptMessages(window.contextMessages, character, worldInfo, userSettings, toolBookData);
             
             // 输出调试信息
             console.log('[提示词管理] 最终消息数:', finalMessages.length);
@@ -2232,13 +2316,14 @@ window.regenerateMessage = async function(index) {
 function refreshChatDisplay() {
     const messagesContainer = document.querySelector('.messages-container');
     if (!messagesContainer) return;
-    
+
     // 清空消息（但不清空容器，因为输入框可能在里面）
     const allMessages = messagesContainer.querySelectorAll('.message');
     allMessages.forEach(msg => msg.remove());
-    
-    // 重新添加所有消息
-    window.contextMessages.forEach((msg, index) => {
+
+    // 重新添加所有消息 - 使用实际的数组索引确保正确性
+    window.contextMessages.forEach((msg, actualIndex) => {
+        const index = actualIndex; // 确保使用正确的索引
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${msg.role}-message`;
         
@@ -2255,7 +2340,7 @@ function refreshChatDisplay() {
                 const persona = window.getCurrentUserPersona();
                 window.textDecorator.setVariable('user', persona.name || 'User');
             }
-            decoratedContent = window.textDecorator.processMessage(msg.content, msg.role);
+            decoratedContent = window.textDecorator.processMessage(msg.content, msg.role, index);
         } else {
             decoratedContent = escapeHtml(msg.content).replace(/\n/g, '<br>');
         }
@@ -2288,6 +2373,21 @@ function refreshChatDisplay() {
             </div>
             <div class="message-body">
                 <div class="message-content" data-index="${index}">${decoratedContent}</div>
+                ${msg.swipes && msg.swipes.length > 1 ? `
+                <div class="swipe-controls">
+                    <button class="swipe-btn swipe-left" onclick="swipeMessage(${index}, -1)" title="上一个开场白">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <span class="swipe-counter">${(msg.swipe_id || 0) + 1} / ${msg.swipes.length}</span>
+                    <button class="swipe-btn swipe-right" onclick="swipeMessage(${index}, 1)" title="下一个开场白">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                ` : ''}
             </div>
         `;
         
@@ -2497,5 +2597,32 @@ window.deleteHistoryChat = async function(index) {
             showToast('删除失败: ' + error.message, 'error');
         }
     }
+};
+
+// ==================== 开场白切换(Swipe)功能 ====================
+
+// 切换消息的备用版本
+window.swipeMessage = function(messageIndex, direction) {
+    const message = window.contextMessages[messageIndex];
+    if (!message || !message.swipes || message.swipes.length <= 1) {
+        return;
+    }
+
+    // 计算新的swipe_id
+    let newSwipeId = (message.swipe_id || 0) + direction;
+
+    // 循环处理
+    if (newSwipeId < 0) {
+        newSwipeId = message.swipes.length - 1;
+    } else if (newSwipeId >= message.swipes.length) {
+        newSwipeId = 0;
+    }
+
+    // 更新消息
+    message.swipe_id = newSwipeId;
+    message.content = message.swipes[newSwipeId];
+
+    // 刷新显示
+    refreshChatDisplay();
 };
  

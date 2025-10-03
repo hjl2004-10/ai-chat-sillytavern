@@ -168,16 +168,16 @@ class TextDecorator {
     }
     
     // 处理消息 - 正则处理 + 变量替换 + 引号修饰 + 星号修饰
-    processMessage(text, role = 'assistant') {
+    processMessage(text, role = 'assistant', messageIndex = undefined) {
         if (!text) return '';
-        
+
         // 0. 先应用正则表达式处理（最早执行，避免影响后续修饰）
         let processed = text;
         if (this.regexEnabled && window.regexEngine) {
-            const placement = role === 'user' ? 
-                window.regexEngine.PLACEMENT.USER_INPUT : 
+            const placement = role === 'user' ?
+                window.regexEngine.PLACEMENT.USER_INPUT :
                 window.regexEngine.PLACEMENT.AI_OUTPUT;
-            
+
             const context = {
                 userName: this.variables.user,
                 charName: this.variables.char,
@@ -185,9 +185,11 @@ class TextDecorator {
                 characterId: window.currentCharacter?.name || null,
                 isMarkdown: false,
                 isPrompt: false,
-                isEdit: false
+                isEdit: false,
+                messageIndex: messageIndex,
+                totalMessages: window.contextMessages ? window.contextMessages.length : 0
             };
-            
+
             processed = window.regexEngine.processText(processed, placement, context);
         }
         

@@ -109,7 +109,14 @@ window.createNewCharacter = function() {
             <label>开场白</label>
             <textarea id="char-first-mes" class="auto-resize" placeholder="角色的第一条消息"></textarea>
         </div>
-        
+
+        <div class="form-group">
+            <label>备用开场白
+                <button type="button" class="add-alt-greeting-btn" onclick="addAlternateGreeting()">+ 添加</button>
+            </label>
+            <div id="alternate-greetings-container"></div>
+        </div>
+
         <details class="advanced-settings">
             <summary>附加设置</summary>
             <div class="advanced-content">
@@ -156,6 +163,7 @@ window.saveNewCharacter = async function() {
         personality: document.getElementById('char-personality').value,
         scenario: document.getElementById('char-scenario').value,
         first_mes: document.getElementById('char-first-mes').value,
+        alternate_greetings: collectAlternateGreetings(),  // 收集备用开场白
         mes_example: document.getElementById('char-mes-example').value,
         creator: 'user',
         create_date: new Date().toISOString(),
@@ -204,21 +212,30 @@ window.importCharacter = async function(file) {
             try {
                 let rawData = JSON.parse(e.target.result);
                 let character;
-                
-                // 处理SillyTavern spec_v2格式
-                if (rawData.spec === 'chara_card_v2' && rawData.data) {
-                    // spec_v2格式，从 data 字段提取
+
+                // 处理SillyTavern格式
+                if ((rawData.spec === 'chara_card_v2' || rawData.spec === 'chara_card_v3') && rawData.data) {
+                    // spec_v2/v3格式，从 data 字段提取
                     character = rawData.data;
                     character.spec = rawData.spec;
                     character.spec_version = rawData.spec_version;
+
+                    // 确保alternate_greetings字段存在
+                    if (!character.alternate_greetings) {
+                        character.alternate_greetings = [];
+                    }
                 } else if (rawData.name) {
                     // 直接格式（兼容旧版）
                     character = rawData;
+                    // 确保alternate_greetings字段存在
+                    if (!character.alternate_greetings) {
+                        character.alternate_greetings = [];
+                    }
                 } else {
                     showToast('无效的角色卡格式', 'error');
                     return;
                 }
-                
+
                 // 保存角色
                 const response = await fetch('/api/character/save', {
                     method: 'POST',
@@ -265,7 +282,10 @@ async function loadCharacterList() {
         if (response.ok) {
             const data = await response.json();
             characterList = data.characters || [];
-            
+
+            // 更新全局变量
+            window.characterList = characterList;
+
             // 不使用localStorage，数据已在服务器
         }
     } catch (error) {
@@ -369,7 +389,7 @@ window.selectCharacterByName = async function(characterName) {
 // 选择角色
 window.selectCharacter = function(index) {
     const newCharacter = characterList[index];
-    
+
     // 如果切换了不同的角色，保存当前对话
     if (window.currentCharacter && window.currentCharacter.name !== newCharacter.name) {
         // 保存当前角色的对话
@@ -377,7 +397,7 @@ window.selectCharacter = function(index) {
             saveChatToHistory();
         }
     }
-    
+
     // 设置当前角色（必须在startNewChat之前）
     const oldCharacter = window.currentCharacter;
     window.currentCharacter = newCharacter;
@@ -434,54 +454,77 @@ function buildCharacterPrompt(character) {
 window.editCharacter = function(index) {
     const character = characterList[index];
     if (!character) return;
-    
+
+    // 兼容spec_v3格式 - 从正确的位置读取字段
+    const name = character.name || character.data?.name || '';
+    const description = character.description || character.data?.description || '';
+    const first_mes = character.first_mes || character.data?.first_mes || '';
+    const personality = character.personality || character.data?.personality || '';
+    const scenario = character.scenario || character.data?.scenario || '';
+    const mes_example = character.mes_example || character.data?.mes_example || '';
+
     const modal = createModal('编辑角色', '');
     const characterForm = document.createElement('div');
     characterForm.className = 'character-form';
     characterForm.innerHTML = `
         <div class="form-group">
             <label>角色名称 *</label>
-            <input type="text" id="edit-char-name" value="${escapeHtml(character.name || '')}" placeholder="输入角色名称">
+            <input type="text" id="edit-char-name" value="${escapeHtml(name)}" placeholder="输入角色名称">
         </div>
-        
+
         <div class="form-group">
             <label>角色描述</label>
-            <textarea id="edit-char-description" class="auto-resize" placeholder="描述角色的基本信息">${escapeHtml(character.description || '')}</textarea>
+            <textarea id="edit-char-description" class="auto-resize" placeholder="描述角色的基本信息">${escapeHtml(description)}</textarea>
         </div>
-        
+
         <div class="form-group">
             <label>开场白</label>
-            <textarea id="edit-char-first-mes" class="auto-resize" placeholder="角色的第一条消息">${escapeHtml(character.first_mes || '')}</textarea>
+            <textarea id="edit-char-first-mes" class="auto-resize" placeholder="角色的第一条消息">${escapeHtml(first_mes)}</textarea>
         </div>
-        
-        <details class="advanced-settings" ${(character.personality || character.scenario || character.mes_example) ? 'open' : ''}>
+
+        <div class="form-group">
+            <label>备用开场白
+                <button type="button" class="add-alt-greeting-btn" onclick="addAlternateGreeting()">+ 添加</button>
+            </label>
+            <div id="alternate-greetings-container"></div>
+        </div>
+
+        <details class="advanced-settings" ${(personality || scenario || mes_example) ? 'open' : ''}>
             <summary>附加设置</summary>
             <div class="advanced-content">
                 <div class="form-group">
                     <label>性格特征</label>
-                    <textarea id="edit-char-personality" class="auto-resize" placeholder="描述角色的性格特点">${escapeHtml(character.personality || '')}</textarea>
+                    <textarea id="edit-char-personality" class="auto-resize" placeholder="描述角色的性格特点">${escapeHtml(personality)}</textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label>场景设定</label>
-                    <textarea id="edit-char-scenario" class="auto-resize" placeholder="设定对话场景">${escapeHtml(character.scenario || '')}</textarea>
+                    <textarea id="edit-char-scenario" class="auto-resize" placeholder="设定对话场景">${escapeHtml(scenario)}</textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label>对话示例</label>
-                    <textarea id="edit-char-mes-example" class="auto-resize" placeholder="示例对话格式：\n{{user}}: 你好\n{{char}}: 你好！很高兴见到你。">${escapeHtml(character.mes_example || '')}</textarea>
+                    <textarea id="edit-char-mes-example" class="auto-resize" placeholder="示例对话格式：\n{{user}}: 你好\n{{char}}: 你好！很高兴见到你。">${escapeHtml(mes_example)}</textarea>
                 </div>
             </div>
         </details>
-        
+
         <div class="form-buttons">
             <button onclick="saveEditedCharacter(${index})">保存修改</button>
             <button onclick="this.closest('.modal').remove()">取消</button>
         </div>
     `;
-    
+
     modal.querySelector('.modal-body').appendChild(characterForm);
-    
+
+    // 初始化备用开场白显示(兼容spec_v3格式)
+    const alternate_greetings = character.alternate_greetings || character.data?.alternate_greetings || [];
+    if (alternate_greetings.length > 0) {
+        alternate_greetings.forEach((greeting) => {
+            addAlternateGreeting(greeting);
+        });
+    }
+
     // 初始化自动调整高度
     initAutoResize(modal);
 };
@@ -505,6 +548,9 @@ window.saveEditedCharacter = async function(index) {
     character.first_mes = document.getElementById('edit-char-first-mes').value;
     character.mes_example = document.getElementById('edit-char-mes-example').value;
     character.modified_date = new Date().toISOString();
+
+    // 收集备用开场白
+    character.alternate_greetings = collectAlternateGreetings();
     
     try {
         // 保存到服务器
@@ -638,3 +684,56 @@ function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
 }
+
+// ==================== 备用开场白管理 ====================
+
+// 添加备用开场白输入框
+window.addAlternateGreeting = function(text = '') {
+    const container = document.getElementById('alternate-greetings-container');
+    if (!container) return;
+
+    const greetingDiv = document.createElement('div');
+    greetingDiv.className = 'alternate-greeting-item';
+    greetingDiv.innerHTML = `
+        <textarea class="auto-resize alternate-greeting-input" placeholder="输入备用开场白...">${escapeHtml(text)}</textarea>
+        <button type="button" class="remove-greeting-btn" onclick="removeAlternateGreeting(this)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
+    container.appendChild(greetingDiv);
+
+    // 自动调整新增的textarea高度
+    const textarea = greetingDiv.querySelector('textarea');
+    autoResize(textarea);
+    textarea.addEventListener('input', function() {
+        autoResize(this);
+    });
+};
+
+// 移除备用开场白
+window.removeAlternateGreeting = function(button) {
+    const item = button.closest('.alternate-greeting-item');
+    if (item) {
+        item.remove();
+    }
+};
+
+// 收集所有备用开场白
+window.collectAlternateGreetings = function() {
+    const container = document.getElementById('alternate-greetings-container');
+    if (!container) return [];
+
+    const textareas = container.querySelectorAll('.alternate-greeting-input');
+    const greetings = [];
+    textareas.forEach(textarea => {
+        const text = textarea.value.trim();
+        if (text) {
+            greetings.push(text);
+        }
+    });
+    return greetings;
+};

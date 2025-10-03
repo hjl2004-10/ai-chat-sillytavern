@@ -213,28 +213,32 @@ class RegexEngine {
     // 处理文本（主入口）
     processText(text, placement, context = {}) {
         if (!text) return text;
-        
+
         // 获取适用的脚本
         const scripts = this.getActiveScripts(context.characterId, placement);
-        
+
         // 按顺序执行脚本
         let result = text;
         scripts.forEach(script => {
-            // 检查深度限制
-            if (context.depth !== undefined) {
-                if (script.minDepth !== null && context.depth < script.minDepth) return;
-                if (script.maxDepth !== null && context.depth > script.maxDepth) return;
+            // 检查扫描深度限制
+            if (script.scanDepth > 0 && context.messageIndex !== undefined && context.totalMessages !== undefined) {
+                // scanDepth > 0表示只扫描最近N条消息
+                // 计算当前消息是否在扫描范围内
+                const fromEnd = context.totalMessages - context.messageIndex; // 从后往前数，1=最后一条
+                if (fromEnd > script.scanDepth) {
+                    return; // 不在扫描范围内，跳过此脚本
+                }
             }
-            
+
             // 检查其他条件
             if (script.markdownOnly && !context.isMarkdown) return;
             if (script.promptOnly && !context.isPrompt) return;
             if (!script.runOnEdit && context.isEdit) return;
-            
+
             // 执行脚本
             result = this.runScript(script, result, context);
         });
-        
+
         return result;
     }
     

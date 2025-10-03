@@ -23,6 +23,8 @@ data/
 *.log
 *.jsonl
 backups/
+logs/
+uploads/
 
 # IDE
 .vscode/

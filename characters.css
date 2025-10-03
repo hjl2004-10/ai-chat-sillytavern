@@ -634,3 +634,64 @@
     background: #1a1a1a;
     border-top-color: #333;
 }
+
+/* 备用开场白样式 */
+.add-alt-greeting-btn {
+    margin-left: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.add-alt-greeting-btn:hover {
+    background: #2563eb;
+}
+
+.alternate-greeting-item {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+}
+
+.alternate-greeting-input {
+    flex: 1;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.dark .alternate-greeting-input {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #e5e7eb;
+}
+
+.remove-greeting-btn {
+    padding: 8px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    height: 36px;
+}
+
+.remove-greeting-btn:hover {
+    background: #dc2626;
+}
+
+.remove-greeting-btn svg {
+    display: block;
+}

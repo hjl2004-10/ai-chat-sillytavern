@@ -3,6 +3,10 @@ let worldBookEntries = [];  // 世界书条目列表（兼容旧版）
 let worldBooks = [];  // 多世界书列表
 let activeWorldBooks = [];  // 激活的世界书ID列表
 
+function getWorldBookById(worldBookId) {
+    return worldBooks.find(wb => wb.id === worldBookId);
+}
+
 // 从服务器加载世界书数据
 async function loadWorldBooksFromServer() {
     try {
@@ -37,6 +41,16 @@ window.initWorldBookSystem = async function() {
     
     // 从服务器加载世界书
     await loadWorldBooksFromServer();
+
+    if (typeof initToolBookSystem === 'function') {
+        await initToolBookSystem();
+    } else {
+        setTimeout(() => {
+            if (typeof initToolBookSystem === 'function') {
+                initToolBookSystem();
+            }
+        }, 0);
+    }
 };
 
 // 显示世界书面板
@@ -120,6 +134,43 @@ window.showWorldBookPanel = function() {
             <div class="world-list" id="worldListContainer">
                 ${worldBookEntries.length === 0 ? '<p class="no-entries">暂无世界书条目</p>' : ''}
             </div>
+
+            <hr class="world-divider" />
+
+            <div class="toolbook-section">
+                <div class="world-section-title">工具书</div>
+
+                <!-- 全局图片推送开关 -->
+                <div class="toolbook-global-settings" style="margin: 10px 0;">
+                    <label class="checkbox-inline" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="globalImagePushToggle" onchange="toggleGlobalImagePush(this.checked)" style="margin-right: 8px;">
+                        <span>📸 启用工具书图片推送功能</span>
+                    </label>
+                    <p style="margin: 5px 0 0 24px; font-size: 12px; opacity: 0.6;">允许AI主动输出工具书中的图片资源（需在单个工具书中启用）</p>
+                </div>
+
+                <div class="world-toolbar">
+                    <button onclick="showToolBookModal()" class="world-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        新建工具书
+                    </button>
+                    <button onclick="triggerToolBookImport()" class="world-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        导入工具书
+                    </button>
+                </div>
+                <input type="file" id="toolBookImportFile" accept=".docx" style="display: none;">
+                <div class="world-books-list" id="toolBooksList">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
         </div>
     `;
     
@@ -135,6 +186,16 @@ window.showWorldBookPanel = function() {
     // 加载世界书列表
     updateWorldBooksDisplay();
     loadWorldBookList();
+
+    if (typeof loadToolBooksFromServer === 'function') {
+        loadToolBooksFromServer();
+    } else if (typeof updateToolBooksDisplay === 'function') {
+        updateToolBooksDisplay();
+    }
+
+    if (typeof setupToolBookImportInput === 'function') {
+        setupToolBookImportInput();
+    }
 };
 
 // 更新世界书列表显示
@@ -218,7 +279,7 @@ window.createNewWorldBook = function() {
 };
 
 // 保存新世界书
-window.saveNewWorldBook = function() {
+window.saveNewWorldBook = async function() {
     const name = document.getElementById('new-wb-name').value.trim();
     const desc = document.getElementById('new-wb-desc').value.trim();
     
@@ -236,12 +297,20 @@ window.saveNewWorldBook = function() {
         active: false
     };
     
-    worldBooks.push(worldBook);
-    saveWorldBooks();
-    
-    document.querySelector('.modal').remove();
-    updateWorldBooksDisplay();
-    showToast('世界书创建成功', 'success');
+    try {
+        worldBooks.push(worldBook);
+        await saveWorldBookToServer(worldBook);
+
+        const modal = document.querySelector('.modal');
+        if (modal) {
+            modal.remove();
+        }
+        updateWorldBooksDisplay();
+        showToast('世界书创建成功', 'success');
+    } catch (error) {
+        console.error('保存世界书失败:', error);
+        showToast('世界书保存失败，请稍后重试', 'error');
+    }
 };
 
 // 选择世界书
@@ -269,7 +338,7 @@ window.switchWorldBook = function(worldBookId) {
 };
 
 // 激活/禁用世界书
-window.toggleWorldBook = function(worldBookId, active) {
+window.toggleWorldBook = async function(worldBookId, active) {
     const worldBook = worldBooks.find(wb => wb.id === worldBookId);
     if (worldBook) {
         worldBook.active = active;
@@ -280,7 +349,13 @@ window.toggleWorldBook = function(worldBookId, active) {
             activeWorldBooks = activeWorldBooks.filter(id => id !== worldBookId);
         }
         
-        saveActiveWorldBooks();
+        try {
+            await saveActiveWorldBooks();
+        } catch (error) {
+            console.error('更新世界书激活状态失败:', error);
+            showToast('保存世界书激活状态失败，请稍后重试', 'error');
+            return;
+        }
         updateWorldBooksDisplay();
         showToast(`世界书"${worldBook.name}"已${active ? '激活' : '禁用'}`, 'success');
     }
@@ -312,7 +387,7 @@ window.editWorldBook = function(worldBookId) {
 };
 
 // 保存编辑后的世界书
-window.saveEditedWorldBook = function(worldBookId) {
+window.saveEditedWorldBook = async function(worldBookId) {
     const worldBook = worldBooks.find(wb => wb.id === worldBookId);
     if (!worldBook) return;
     
@@ -326,33 +401,60 @@ window.saveEditedWorldBook = function(worldBookId) {
     
     worldBook.name = name;
     worldBook.description = desc;
-    saveWorldBooks();
-    
-    document.querySelector('.modal').remove();
-    updateWorldBooksDisplay();
-    
-    // 更新选择器中的名称
-    const selector = document.getElementById('worldBookSelector');
-    if (selector && selector.value === worldBookId) {
-        const option = selector.querySelector(`option[value="${worldBookId}"]`);
-        if (option) option.textContent = name;
+
+    try {
+        await saveWorldBookToServer(worldBook);
+
+        const modal = document.querySelector('.modal');
+        if (modal) {
+            modal.remove();
+        }
+        updateWorldBooksDisplay();
+
+        const selector = document.getElementById('worldBookSelector');
+        if (selector && selector.value === worldBookId) {
+            const option = selector.querySelector(`option[value="${worldBookId}"]`);
+            if (option) option.textContent = name;
+        }
+
+        showToast('世界书已更新', 'success');
+    } catch (error) {
+        console.error('更新世界书失败:', error);
+        showToast('世界书保存失败，请稍后重试', 'error');
     }
-    
-    showToast('世界书已更新', 'success');
 };
 
 // 删除世界书
-window.deleteWorldBook = function(worldBookId) {
+window.deleteWorldBook = async function(worldBookId) {
     const worldBook = worldBooks.find(wb => wb.id === worldBookId);
     if (!worldBook) return;
     
     if (confirm(`确定要删除世界书"${worldBook.name}"吗？\n该操作将删除其中的所有条目。`)) {
+        try {
+            const response = await fetch(`/api/world/delete/${encodeURIComponent(worldBookId)}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error('删除接口返回异常');
+            }
+        } catch (error) {
+            console.error('删除世界书失败:', error);
+            showToast('删除世界书失败，请稍后重试', 'error');
+            return;
+        }
+
         const index = worldBooks.findIndex(wb => wb.id === worldBookId);
-        worldBooks.splice(index, 1);
+        if (index !== -1) {
+            worldBooks.splice(index, 1);
+        }
         activeWorldBooks = activeWorldBooks.filter(id => id !== worldBookId);
-        
-        saveWorldBooks();
-        saveActiveWorldBooks();
+
+        try {
+            await saveActiveWorldBooks();
+        } catch (error) {
+            console.error('更新激活状态失败:', error);
+            showToast('更新激活状态失败，请稍后重试', 'error');
+        }
         updateWorldBooksDisplay();
         
         // 如果当前选中的是这个世界书，清空条目列表
@@ -460,6 +562,12 @@ window.saveNewWorldEntry = async function() {
         return;
     }
     
+    const selector = document.getElementById('worldBookSelector');
+    if (!selector || !selector.value) {
+        showToast('请先选择或创建一个世界书', 'warning');
+        return;
+    }
+
     const entry = {
         id: 'world_' + Date.now(),
         keys: keys.split(',').map(k => k.trim()).filter(k => k),
@@ -476,22 +584,36 @@ window.saveNewWorldEntry = async function() {
     };
     
     // 添加到当前世界书
-    const selector = document.getElementById('worldBookSelector');
+    let pushedToSharedList = false;
     if (selector && selector.value) {
         const worldBook = worldBooks.find(wb => wb.id === selector.value);
         if (worldBook) {
             if (!worldBook.entries) worldBook.entries = [];
             worldBook.entries.push(entry);
-            saveWorldBooks();
+            if (worldBookEntries === worldBook.entries) {
+                pushedToSharedList = true;
+            }
         }
     }
-    
+
     // 更新当前显示
-    worldBookEntries.push(entry);
-    saveWorldBookToLocal();
-    
+    if (!pushedToSharedList) {
+        worldBookEntries.push(entry);
+    }
+
+    try {
+        await saveWorldBookToLocal();
+    } catch (error) {
+        console.error('保存世界书条目失败:', error);
+        showToast('保存世界书条目失败，请稍后重试', 'error');
+        return;
+    }
+
     // 关闭创建窗口
-    document.querySelector('.modal').remove();
+    const modal = document.querySelector('.modal');
+    if (modal) {
+        modal.remove();
+    }
     
     // 刷新显示
     updateWorldBookDisplay();
@@ -508,7 +630,6 @@ async function loadWorldBookList() {
             const data = await response.json();
             if (data.worldBooks) {
                 worldBooks = data.worldBooks;
-                saveWorldBooks();
                 
                 // 激活状态已经从服务器加载
                 // activeWorldBooks 在 loadActiveWorldBooks 中设置
@@ -596,21 +717,17 @@ function updateWorldBookDisplay() {
 }
 
 // 切换世界书条目启用状态
-window.toggleWorldEntry = function(index) {
+window.toggleWorldEntry = async function(index) {
     if (worldBookEntries[index]) {
         worldBookEntries[index].enabled = !worldBookEntries[index].enabled;
-        saveWorldBookToLocal();
-        updateWorldBookDisplay();
-        
-        // 同步整个世界书到服务器
-        const selector = document.getElementById('worldBookSelector');
-        if (selector && selector.value) {
-            const worldBook = worldBooks.find(wb => wb.id === selector.value);
-            if (worldBook) {
-                worldBook.entries = worldBookEntries;
-                saveWorldBookToServer(worldBook);
-            }
+        try {
+            await saveWorldBookToLocal();
+        } catch (error) {
+            console.error('保存世界书状态失败:', error);
+            showToast('更新世界书条目状态失败，请稍后重试', 'error');
+            return;
         }
+        updateWorldBookDisplay();
     }
 };
 
@@ -721,12 +838,14 @@ window.saveEditedWorldEntry = async function(index) {
     entry.comment = document.getElementById('edit-world-comment').value;
     entry.modified_date = new Date().toISOString();
     
-    // 保存到本地
-    saveWorldBookToLocal();
-    
-    // 同步到服务器
-    await saveWorldEntryToServer(entry);
-    
+    try {
+        await saveWorldBookToLocal();
+    } catch (error) {
+        console.error('保存世界书条目失败:', error);
+        showToast('保存世界书条目失败，请稍后重试', 'error');
+        return;
+    }
+
     // 关闭编辑窗口
     document.querySelector('.modal').remove();
     
@@ -744,7 +863,13 @@ window.deleteWorldEntry = async function(index) {
     if (confirm(`确定要删除条目 "${entry.title || entry.keys[0]}" 吗？`)) {
         // 从列表中移除
         worldBookEntries.splice(index, 1);
-        saveWorldBookToLocal();
+        try {
+            await saveWorldBookToLocal();
+        } catch (error) {
+            console.error('保存世界书条目失败:', error);
+            showToast('保存世界书条目失败，请稍后重试', 'error');
+            return;
+        }
         
         // 从服务器删除
         try {
@@ -912,7 +1037,6 @@ window.importWorldBook = async function(file) {
             
             // 添加到世界书列表
             worldBooks.push(newWorldBook);
-            saveWorldBooks();
             
             // 更新显示
             updateWorldBooksDisplay();
@@ -920,9 +1044,14 @@ window.importWorldBook = async function(file) {
             // 自动选中并显示导入的世界书
             selectWorldBook(newWorldBook.id);
             
-            // 保存到后端（使用统一的保存函数）
-            await saveWorldBookToServer(newWorldBook);
-            
+            try {
+                await saveWorldBookToServer(newWorldBook);
+            } catch (error) {
+                console.error('导入世界书保存失败:', error);
+                showToast(`世界书"${worldBookName}"导入后保存失败，请稍后重试`, 'error');
+                return;
+            }
+
             const importedCount = processedEntries.length;
             showToast(`成功导入世界书"${worldBookName}"，包含 ${importedCount} 个条目`, 'success');
             
@@ -1034,33 +1163,29 @@ window.exportAllWorldBooks = function() {
 };
 
 // 保存世界书到本地存储
-function saveWorldBookToLocal() {
-    // 不使用localStorage
-    // 同时更新当前世界书的条目
+async function saveWorldBookToLocal() {
     const selector = document.getElementById('worldBookSelector');
     if (selector && selector.value) {
         const worldBook = worldBooks.find(wb => wb.id === selector.value);
         if (worldBook) {
-            worldBook.entries = worldBookEntries;
-            saveWorldBooks();
-            // 同步保存到服务器
-            saveWorldBookToServer(worldBook);
+            const updatedEntries = Array.isArray(worldBookEntries) ? [...worldBookEntries] : [];
+            worldBook.entries = updatedEntries;
+            worldBookEntries = updatedEntries;
+            if (worldBook.originalFormat) {
+                delete worldBook.originalFormat;
+            }
+            await saveWorldBookToServer(worldBook);
         }
     }
 }
 
 // 保存多世界书列表
-function saveWorldBooks() {
-    // 不使用localStorage
-    // 保存每个世界书到服务器
-    worldBooks.forEach(wb => {
-        saveWorldBookToServer(wb);
-    });
+async function saveWorldBooks() {
+    await Promise.all(worldBooks.map(wb => saveWorldBookToServer(wb)));
 }
 
 // 保存激活状态到服务器
 async function saveActiveWorldBooks() {
-    // 不使用localStorage，保存到服务器配置
     try {
         const response = await fetch('/api/world/save-active', {
             method: 'POST',
@@ -1072,27 +1197,27 @@ async function saveActiveWorldBooks() {
                 timestamp: new Date().toISOString()
             })
         });
-        
+
         if (!response.ok) {
-            console.error('保存激活状态失败');
+            const errorText = await response.text();
+            throw new Error(errorText || '保存激活状态失败');
         }
     } catch (error) {
         console.error('保存激活状态错误:', error);
+        throw error;
     }
 }
 
 // 保存世界书到服务器
 async function saveWorldBookToServer(worldBook) {
     try {
-        // 如果有原始格式，转换回SillyTavern格式保存
         let saveData = worldBook;
-        
-        // 如果没有原始格式，创建SillyTavern格式
+
         if (!worldBook.originalFormat) {
             const sillyTavernFormat = {
                 "entries": {}
             };
-            
+
             if (worldBook.entries) {
                 worldBook.entries.forEach((entry, index) => {
                     sillyTavernFormat.entries[index.toString()] = {
@@ -1131,8 +1256,7 @@ async function saveWorldBookToServer(worldBook) {
                     };
                 });
             }
-            
-            // 保存SillyTavern格式，但附加我们的元数据
+
             saveData = {
                 ...sillyTavernFormat,
                 _metadata: {
@@ -1144,7 +1268,6 @@ async function saveWorldBookToServer(worldBook) {
                 }
             };
         } else {
-            // 使用原始格式，但添加元数据
             saveData = {
                 ...worldBook.originalFormat,
                 _metadata: {
@@ -1156,7 +1279,7 @@ async function saveWorldBookToServer(worldBook) {
                 }
             };
         }
-        
+
         const response = await fetch('/api/world/save', {
             method: 'POST',
             headers: {
@@ -1164,12 +1287,16 @@ async function saveWorldBookToServer(worldBook) {
             },
             body: JSON.stringify(saveData)
         });
-        
+
         if (!response.ok) {
-            console.error('保存世界书到服务器失败');
+            const errorText = await response.text();
+            throw new Error(errorText || '保存世界书到服务器失败');
         }
+
+        return true;
     } catch (error) {
         console.error('保存到服务器失败:', error);
+        throw error;
     }
 }
 
@@ -1281,7 +1408,7 @@ window.initWorldBook = function() {
     worldBookEntries = [];
 };
 // 手动激活世界书（供调试使用）
-window.activateWorldBook = function(worldBookId) {
+window.activateWorldBook = async function(worldBookId) {
     const worldBook = worldBooks.find(wb => wb.id === worldBookId);
     if (!worldBook) {
         console.error('世界书不存在:', worldBookId);
@@ -1293,7 +1420,12 @@ window.activateWorldBook = function(worldBookId) {
         activeWorldBooks.push(worldBookId);
     }
     
-    saveActiveWorldBooks();
+    try {
+        await saveActiveWorldBooks();
+    } catch (error) {
+        console.error('保存激活状态失败:', error);
+        return false;
+    }
     updateWorldBooksDisplay();
     console.log(`世界书"${worldBook.name}"(${worldBookId})已激活`);
     console.log('当前激活的世界书:', activeWorldBooks);
@@ -1302,3 +1434,24 @@ window.activateWorldBook = function(worldBookId) {
 
 // 初始化世界书系统
 initWorldBookSystem();
+
+// 暴露统一的世界书管理器，供提示词管理等模块调用
+window.worldManager = {
+    get activeBooks() {
+        return (activeWorldBooks || []).map(id => getWorldBookById(id)).filter(Boolean);
+    },
+    get activeBookIds() {
+        return Array.isArray(activeWorldBooks) ? [...activeWorldBooks] : [];
+    },
+    getActivatedEntries(messages) {
+        try {
+            return checkWorldBookTriggers(messages || []);
+        } catch (error) {
+            console.error('世界书触发失败:', error);
+            return [];
+        }
+    },
+    refresh() {
+        return loadWorldBooksFromServer();
+    }
+};

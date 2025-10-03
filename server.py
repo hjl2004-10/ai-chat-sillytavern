@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory, render_template_string
+﻿from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory, render_template_string
 from flask_cors import CORS
 import json
 import requests
@@ -7,9 +7,13 @@ from datetime import datetime
 import os
 import uuid
 import logging
+import shutil
+import tempfile
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from werkzeug.utils import secure_filename
 from document_parser import UniversalDocumentParser
+from docx_extract import extract_from_docx
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -19,9 +23,29 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
+TOOLBOOK_DIR = os.path.join(DATA_DIR, 'toolbooks')
+TOOLBOOK_INDEX_FILE = os.path.join(TOOLBOOK_DIR, 'toolbooks_index.json')
+TOOLBOOK_ACTIVE_FILE = os.path.join(TOOLBOOK_DIR, 'active_toolbooks.json')
 
 # 确保上传目录存在
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(TOOLBOOK_DIR, exist_ok=True)
+
+
+def ensure_toolbook_storage():
+    """Ensure toolbook index and active files exist."""
+    if not os.path.exists(TOOLBOOK_INDEX_FILE):
+        with open(TOOLBOOK_INDEX_FILE, 'w', encoding='utf-8') as f:
+            json.dump({"toolbooks": []}, f, ensure_ascii=False, indent=2)
+    if not os.path.exists(TOOLBOOK_ACTIVE_FILE):
+        with open(TOOLBOOK_ACTIVE_FILE, 'w', encoding='utf-8') as f:
+            json.dump({"activeToolBooks": []}, f, ensure_ascii=False, indent=2)
+
+
+ensure_toolbook_storage()
+
+# 工具书导入进度跟踪
+toolbook_import_progress = {}
 
 # 初始化文档解析器
 doc_parser = UniversalDocumentParser(max_file_size=20*1024*1024)  # 20MB限制
@@ -130,6 +154,137 @@ def log_ai_request(endpoint, request_data, response_data=None, error=None):
             ai_logger.error(line)
         else:
             ai_logger.info(line)
+
+
+
+def slugify_toolbook_keyword(keyword: str) -> str:
+    """
+    将关键词标准化为安全的文件名格式
+    支持中文、英文、数字、下划线、横杠
+    """
+    if not keyword:
+        return f"toolbook_{uuid.uuid4().hex[:8]}"
+
+    # 移除首尾空白
+    sanitized = keyword.strip()
+
+    # 替换一些不安全的字符
+    unsafe_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\n', '\r', '\t']
+    for char in unsafe_chars:
+        sanitized = sanitized.replace(char, '_')
+
+    # 移除首尾的下划线和横杠
+    sanitized = sanitized.strip('_-')
+
+    # 如果处理后为空，生成一个默认名称
+    if not sanitized:
+        sanitized = f"toolbook_{uuid.uuid4().hex[:8]}"
+
+    return sanitized
+
+
+def get_toolbook_txt_path(keyword: str) -> str:
+    return os.path.join(TOOLBOOK_DIR, f"{keyword}.txt")
+
+
+def get_toolbook_resource_dir(keyword: str) -> str:
+    return os.path.join(TOOLBOOK_DIR, keyword)
+
+
+def load_toolbook_index() -> dict:
+    ensure_toolbook_storage()
+    try:
+        with open(TOOLBOOK_INDEX_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"toolbooks": []}
+
+
+def save_toolbook_index(index_data: dict) -> None:
+    ensure_toolbook_storage()
+    with open(TOOLBOOK_INDEX_FILE, 'w', encoding='utf-8') as f:
+        json.dump(index_data, f, ensure_ascii=False, indent=2)
+
+
+def get_active_toolbook_keywords() -> list:
+    ensure_toolbook_storage()
+    try:
+        with open(TOOLBOOK_ACTIVE_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('activeToolBooks', [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def save_active_toolbook_keywords(keywords: list) -> None:
+    ensure_toolbook_storage()
+    with open(TOOLBOOK_ACTIVE_FILE, 'w', encoding='utf-8') as f:
+        json.dump({'activeToolBooks': keywords}, f, ensure_ascii=False, indent=2)
+
+
+def list_toolbook_resources(keyword: str) -> list:
+    resources = []
+    resource_dir = get_toolbook_resource_dir(keyword)
+    if os.path.isdir(resource_dir):
+        for name in sorted(os.listdir(resource_dir)):
+            file_path = os.path.join(resource_dir, name)
+            if os.path.isfile(file_path):
+                stat_result = os.stat(file_path)
+                resources.append({
+                    'name': name,
+                    'size': stat_result.st_size,
+                    'modified': datetime.fromtimestamp(stat_result.st_mtime).isoformat()
+                })
+    return resources
+
+
+def _make_unique_filename(directory: str, filename: str) -> str:
+    base, ext = os.path.splitext(filename)
+    counter = 1
+    candidate = filename
+    while os.path.exists(os.path.join(directory, candidate)):
+        candidate = f"{base}_{counter}{ext}"
+        counter += 1
+    return candidate
+
+
+def _parse_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def serialize_toolbook(meta: dict, include_content: bool = True) -> dict:
+    keyword = meta.get('keyword')
+    txt_path = get_toolbook_txt_path(keyword)
+    content = ''
+    if include_content and os.path.exists(txt_path):
+        with open(txt_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+    result = {
+        'keyword': keyword,
+        'displayName': meta.get('displayName') or keyword,
+        'description': meta.get('description', ''),
+        'position': meta.get('position', 'before'),
+        'order': meta.get('order', 100),
+        'probability': meta.get('probability', 100),
+        'scan_depth': meta.get('scan_depth', 4),
+        'use_probability': meta.get('use_probability', True),
+        'enableImagePush': meta.get('enableImagePush', False),
+        'createDate': meta.get('createDate'),
+        'updateDate': meta.get('updateDate'),
+        'active': meta.get('active', False),
+        'resources': list_toolbook_resources(keyword)
+    }
+
+    if include_content:
+        result['content'] = content
+
+    return result
+
+
 
 # 动态配置管理
 def load_config():
@@ -443,6 +598,447 @@ def clear_context():
 
 # 旧的 /api/chat/list 已删除，使用新的 /api/chats/list
 
+# ==================== 工具书相关API ====================
+
+@app.route('/api/toolbook/list', methods=['GET'])
+def get_toolbook_list():
+    try:
+        index = load_toolbook_index()
+        active_set = set(get_active_toolbook_keywords())
+        toolbooks = []
+        for meta in index.get('toolbooks', []):
+            meta_copy = dict(meta)
+            keyword = meta_copy.get('keyword')
+            meta_copy['active'] = keyword in active_set
+            toolbooks.append(serialize_toolbook(meta_copy, include_content=True))
+        return jsonify({'toolBooks': toolbooks})
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/get-active', methods=['GET'])
+def get_toolbook_active():
+    try:
+        index = load_toolbook_index()
+        global_image_push = index.get('globalImagePushEnabled', False)
+        return jsonify({
+            'activeToolBooks': get_active_toolbook_keywords(),
+            'globalImagePushEnabled': global_image_push
+        })
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/save-active', methods=['POST'])
+def save_toolbook_active():
+    try:
+        data = request.json or {}
+        requested = data.get('activeToolBooks', [])
+        global_image_push = data.get('globalImagePushEnabled', False)
+
+        index = load_toolbook_index()
+        valid_keywords = {tb.get('keyword') for tb in index.get('toolbooks', [])}
+        normalized = []
+        for keyword in requested:
+            safe_keyword = slugify_toolbook_keyword(keyword)
+            if safe_keyword in valid_keywords and safe_keyword not in normalized:
+                normalized.append(safe_keyword)
+
+        # 保存激活列表和全局图片推送开关
+        save_active_toolbook_keywords(normalized)
+        index['globalImagePushEnabled'] = global_image_push
+        save_toolbook_index(index)
+
+        return jsonify({
+            'status': 'success',
+            'activeToolBooks': normalized,
+            'globalImagePushEnabled': global_image_push
+        })
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/save', methods=['POST'])
+def save_toolbook():
+    try:
+        data = request.json or {}
+        print(f"[工具书保存] 收到的数据: {data}")
+        print(f"[工具书保存] enableImagePush值: {data.get('enableImagePush')}")
+
+        keyword_input = (data.get('keyword') or '').strip()
+        if not keyword_input:
+            return jsonify({'error': '工具书关键词不能为空'}), 400
+
+        safe_keyword = slugify_toolbook_keyword(keyword_input)
+        original_keyword_input = (data.get('originalKeyword') or '').strip()
+        safe_original = slugify_toolbook_keyword(original_keyword_input) if original_keyword_input else safe_keyword
+
+        index = load_toolbook_index()
+        toolbooks = index.get('toolbooks', [])
+        now_iso = datetime.now().isoformat()
+
+        existing = next((tb for tb in toolbooks if tb.get('keyword') == safe_original), None)
+        duplicate = next((tb for tb in toolbooks if tb.get('keyword') == safe_keyword), None)
+
+        if existing is None and duplicate:
+            return jsonify({'error': '存在同名工具书，请更换关键词'}), 409
+        if existing and safe_original != safe_keyword and duplicate:
+            return jsonify({'error': '目标关键词已被使用，请更换关键词'}), 409
+
+        position = data.get('position', 'before')
+        if position not in ('before', 'after'):
+            position = 'before'
+        order_value = _parse_int(data.get('order'), 100)
+
+        if existing is None:
+            meta = {
+                'keyword': safe_keyword,
+                'displayName': data.get('displayName', keyword_input or safe_keyword),
+                'description': data.get('description', ''),
+                'position': position,
+                'order': order_value,
+                'probability': _parse_int(data.get('probability'), 100),
+                'scan_depth': _parse_int(data.get('scan_depth'), 4),
+                'use_probability': data.get('use_probability', True),
+                'enableImagePush': data.get('enableImagePush', False),
+                'createDate': now_iso,
+                'updateDate': now_iso
+            }
+            toolbooks.append(meta)
+        else:
+            meta = existing
+            if safe_original != safe_keyword:
+                old_txt = get_toolbook_txt_path(safe_original)
+                new_txt = get_toolbook_txt_path(safe_keyword)
+                if os.path.exists(old_txt):
+                    if os.path.exists(new_txt):
+                        os.remove(new_txt)
+                    os.replace(old_txt, new_txt)
+                old_dir = get_toolbook_resource_dir(safe_original)
+                new_dir = get_toolbook_resource_dir(safe_keyword)
+                if os.path.isdir(old_dir):
+                    os.makedirs(new_dir, exist_ok=True)
+                    for name in os.listdir(old_dir):
+                        shutil.move(os.path.join(old_dir, name), os.path.join(new_dir, name))
+                    shutil.rmtree(old_dir, ignore_errors=True)
+                meta['keyword'] = safe_keyword
+            meta['displayName'] = data.get('displayName', meta.get('displayName') or keyword_input or safe_keyword)
+            meta['description'] = data.get('description', '')
+            meta['position'] = position
+            meta['order'] = order_value
+            meta['probability'] = _parse_int(data.get('probability'), 100)
+            meta['scan_depth'] = _parse_int(data.get('scan_depth'), 4)
+            meta['use_probability'] = data.get('use_probability', True)
+            meta['enableImagePush'] = data.get('enableImagePush', False)
+            meta.setdefault('createDate', now_iso)
+            meta['updateDate'] = now_iso
+
+        content = data.get('content', '') or ''
+        txt_path = get_toolbook_txt_path(safe_keyword)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        os.makedirs(get_toolbook_resource_dir(safe_keyword), exist_ok=True)
+
+        print(f"[工具书保存] 保存前meta对象: {meta}")
+
+        index['toolbooks'] = toolbooks
+        save_toolbook_index(index)
+
+        active_keywords = set(get_active_toolbook_keywords())
+        if 'active' in data:
+            if data['active']:
+                active_keywords.add(safe_keyword)
+            else:
+                active_keywords.discard(safe_keyword)
+            save_active_toolbook_keywords(sorted(active_keywords))
+        else:
+            if safe_original != safe_keyword and safe_original in active_keywords:
+                active_keywords.discard(safe_original)
+                active_keywords.add(safe_keyword)
+                save_active_toolbook_keywords(sorted(active_keywords))
+
+        meta['active'] = safe_keyword in active_keywords
+        return jsonify({'status': 'success', 'toolBook': serialize_toolbook(meta, include_content=True)})
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/delete/<path:toolbook_keyword>', methods=['DELETE'])
+def delete_toolbook(toolbook_keyword):
+    try:
+        safe_keyword = slugify_toolbook_keyword(toolbook_keyword)
+        index = load_toolbook_index()
+        toolbooks = index.get('toolbooks', [])
+        new_toolbooks = [tb for tb in toolbooks if tb.get('keyword') != safe_keyword]
+        if len(new_toolbooks) == len(toolbooks):
+            return jsonify({'error': '工具书不存在'}), 404
+        index['toolbooks'] = new_toolbooks
+        save_toolbook_index(index)
+
+        active_keywords = [kw for kw in get_active_toolbook_keywords() if kw != safe_keyword]
+        save_active_toolbook_keywords(active_keywords)
+
+        txt_path = get_toolbook_txt_path(safe_keyword)
+        if os.path.exists(txt_path):
+            os.remove(txt_path)
+        resource_dir = get_toolbook_resource_dir(safe_keyword)
+        if os.path.isdir(resource_dir):
+            shutil.rmtree(resource_dir, ignore_errors=True)
+
+        return jsonify({'status': 'success'})
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/upload-resource', methods=['POST'])
+def upload_toolbook_resource():
+    try:
+        keyword = request.form.get('keyword', '')
+        safe_keyword = slugify_toolbook_keyword(keyword)
+        if not safe_keyword:
+            return jsonify({'error': '缺少工具书关键词'}), 400
+
+        index = load_toolbook_index()
+        valid_keywords = {tb.get('keyword') for tb in index.get('toolbooks', [])}
+        if safe_keyword not in valid_keywords:
+            return jsonify({'error': '工具书不存在'}), 404
+
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'error': '请上传文件'}), 400
+
+        filename = secure_filename(file.filename)
+        if not filename:
+            return jsonify({'error': '文件名不合法'}), 400
+
+        resource_dir = get_toolbook_resource_dir(safe_keyword)
+        os.makedirs(resource_dir, exist_ok=True)
+        filename = _make_unique_filename(resource_dir, filename)
+        file.save(os.path.join(resource_dir, filename))
+
+        resources = list_toolbook_resources(safe_keyword)
+        resource_info = next((r for r in resources if r['name'] == filename), None)
+        return jsonify({'status': 'success', 'resource': resource_info, 'resources': resources})
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/delete-resource', methods=['POST'])
+def delete_toolbook_resource():
+    try:
+        data = request.json or {}
+        keyword = data.get('keyword')
+        filename = data.get('filename')
+        if not keyword or not filename:
+            return jsonify({'error': '缺少必要参数'}), 400
+        safe_keyword = slugify_toolbook_keyword(keyword)
+        resource_dir = get_toolbook_resource_dir(safe_keyword)
+        file_path = os.path.join(resource_dir, filename)
+        if not os.path.exists(file_path):
+            return jsonify({'error': '资源不存在'}), 404
+        os.remove(file_path)
+        resources = list_toolbook_resources(safe_keyword)
+        return jsonify({'status': 'success', 'resources': resources})
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/toolbook/import', methods=['POST'])
+def import_toolbook():
+    import_id = f"import_{uuid.uuid4().hex[:8]}"
+    toolbook_import_progress[import_id] = {
+        'status': 'starting',
+        'current': 0,
+        'total': 0,
+        'message': '开始导入',
+        'image_name': ''
+    }
+
+    try:
+        uploaded_file = request.files.get('file')
+        if not uploaded_file or not uploaded_file.filename:
+            return jsonify({'error': '请上传docx文件'}), 400
+
+        if not uploaded_file.filename.lower().endswith('.docx'):
+            return jsonify({'error': '仅支持导入 docx 文件'}), 400
+
+        keyword_input = (request.form.get('keyword') or Path(uploaded_file.filename).stem).strip()
+        safe_keyword = slugify_toolbook_keyword(keyword_input)
+        overwrite = (request.form.get('overwrite', 'false').lower() == 'true')
+        description = request.form.get('description', '')
+        display_name = request.form.get('displayName', keyword_input)
+        position = request.form.get('position', 'before')
+        if position not in ('before', 'after'):
+            position = 'before'
+        order_value = _parse_int(request.form.get('order'), 100)
+        activate = request.form.get('activate', 'false').lower() == 'true'
+
+        # 获取识图配置
+        enable_vision = request.form.get('enableVision', 'false').lower() == 'true'
+        vision_config = None
+        if enable_vision:
+            vision_config = {
+                'api_base': request.form.get('visionApiBase', 'https://api.yuegle.com'),
+                'api_path': request.form.get('visionApiPath', '/v1/chat/completions'),
+                'api_key': request.form.get('visionApiKey', ''),
+                'model': request.form.get('visionModel', 'claude-sonnet-4-5-20250929'),
+                'prompt': request.form.get('visionPrompt', '请简要描述这张图片的主要内容和显著细节，并用中文回答，尽量一句话说完。')
+            }
+
+        index = load_toolbook_index()
+        toolbooks = index.get('toolbooks', [])
+        existing = next((tb for tb in toolbooks if tb.get('keyword') == safe_keyword), None)
+        if existing and not overwrite:
+            return jsonify({'error': '工具书已存在，如需覆盖请开启覆盖选项'}), 409
+
+        # 进度回调函数
+        def progress_callback(current, total, image_name, status, message):
+            toolbook_import_progress[import_id] = {
+                'status': status,
+                'current': current,
+                'total': total,
+                'message': message,
+                'image_name': image_name
+            }
+
+        toolbook_import_progress[import_id]['status'] = 'extracting'
+        toolbook_import_progress[import_id]['message'] = '正在提取文档内容'
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            docx_path = os.path.join(tmp_dir, secure_filename(uploaded_file.filename) or 'toolbook.docx')
+            uploaded_file.save(docx_path)
+            output_dir = Path(tmp_dir) / 'extracted'
+
+            # 传递进度回调
+            from docx_extract import extract_from_docx
+            extract_from_docx(
+                Path(docx_path),
+                output_dir,
+                keep_temp=False,
+                vision_config=vision_config,
+                enable_vision=enable_vision,
+                progress_callback=progress_callback if enable_vision else None
+            )
+
+            text_path = output_dir / 'document.txt'
+            content = text_path.read_text(encoding='utf-8') if text_path.exists() else ''
+            media_dir = output_dir / 'media'
+            placeholder_map = {}
+            destination_dir = get_toolbook_resource_dir(safe_keyword)
+            os.makedirs(destination_dir, exist_ok=True)
+            if media_dir.exists() and media_dir.is_dir():
+                for media in media_dir.iterdir():
+                    if media.is_file():
+                        unique_name = _make_unique_filename(destination_dir, media.name)
+                        shutil.copy2(str(media), os.path.join(destination_dir, unique_name))
+                        if unique_name != media.name:
+                            placeholder_map[media.name] = unique_name
+            for original, new_name in placeholder_map.items():
+                content = content.replace(f"[[{original}]]", f"[[{new_name}]]")
+
+        txt_path = get_toolbook_txt_path(safe_keyword)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        now_iso = datetime.now().isoformat()
+        if existing is None:
+            meta = {
+                'keyword': safe_keyword,
+                'displayName': display_name or safe_keyword,
+                'description': description,
+                'position': position,
+                'order': order_value,
+                'createDate': now_iso,
+                'updateDate': now_iso
+            }
+            toolbooks.append(meta)
+        else:
+            meta = existing
+            meta['displayName'] = display_name or meta.get('displayName') or safe_keyword
+            meta['description'] = description
+            meta['position'] = position
+            meta['order'] = order_value
+            meta.setdefault('createDate', now_iso)
+            meta['updateDate'] = now_iso
+
+        index['toolbooks'] = toolbooks
+        save_toolbook_index(index)
+
+        active_keywords = set(get_active_toolbook_keywords())
+        if activate:
+            active_keywords.add(safe_keyword)
+            save_active_toolbook_keywords(sorted(active_keywords))
+        meta['active'] = safe_keyword in active_keywords
+
+        toolbook_import_progress[import_id]['status'] = 'completed'
+        toolbook_import_progress[import_id]['message'] = '导入完成'
+
+        return jsonify({
+            'status': 'success',
+            'toolBook': serialize_toolbook(meta, include_content=True),
+            'import_id': import_id
+        })
+    except Exception as exc:
+        if import_id in toolbook_import_progress:
+            toolbook_import_progress[import_id]['status'] = 'error'
+            toolbook_import_progress[import_id]['message'] = str(exc)
+        return jsonify({'error': str(exc), 'import_id': import_id}), 500
+
+
+@app.route('/api/toolbook/import-progress/<import_id>', methods=['GET'])
+def get_import_progress(import_id):
+    """获取工具书导入进度"""
+    if import_id == 'latest':
+        # 返回最新的进度
+        if toolbook_import_progress:
+            latest_key = max(toolbook_import_progress.keys())
+            progress = toolbook_import_progress[latest_key]
+        else:
+            progress = {
+                'status': 'not_found',
+                'current': 0,
+                'total': 0,
+                'message': '未找到导入任务',
+                'image_name': ''
+            }
+    else:
+        progress = toolbook_import_progress.get(import_id, {
+            'status': 'not_found',
+            'current': 0,
+            'total': 0,
+            'message': '未找到导入任务',
+            'image_name': ''
+        })
+    return jsonify(progress)
+
+
+@app.route('/api/toolbook-resource/<keyword>/<filename>', methods=['GET'])
+def get_toolbook_resource_file(keyword, filename):
+    """提供工具书附件的访问"""
+    try:
+        print(f"[工具书资源] 请求访问: keyword={keyword}, filename={filename}")
+        safe_keyword = slugify_toolbook_keyword(keyword)
+        print(f"[工具书资源] 转换后的keyword: {safe_keyword}")
+        resource_dir = get_toolbook_resource_dir(safe_keyword)
+        print(f"[工具书资源] 资源目录: {resource_dir}")
+        resource_path = os.path.join(resource_dir, filename)
+        print(f"[工具书资源] 完整路径: {resource_path}")
+        print(f"[工具书资源] 文件是否存在: {os.path.exists(resource_path)}")
+
+        if os.path.exists(resource_path) and os.path.isfile(resource_path):
+            print(f"[工具书资源] 文件找到，开始发送")
+            return send_from_directory(resource_dir, filename)
+        else:
+            print(f"[工具书资源] 文件不存在！")
+            # 列出目录中的所有文件
+            if os.path.exists(resource_dir):
+                files = os.listdir(resource_dir)
+                print(f"[工具书资源] 目录中的文件: {files}")
+            return jsonify({"error": "资源不存在"}), 404
+    except Exception as e:
+        print(f"[工具书资源] 错误: {e}")
+        return jsonify({"error": str(e)}), 500
 # ==================== 世界书相关API ====================
 
 @app.route('/api/world/save', methods=['POST'])
@@ -1231,3 +1827,6 @@ if __name__ == '__main__':
 # 这将帮助调试和监控AI服务的使用情况
 # 日志文件位置：logs/ai_chat.log
 # ============================
+
+
+

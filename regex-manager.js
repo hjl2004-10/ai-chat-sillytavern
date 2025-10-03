@@ -142,7 +142,13 @@ class RegexManager {
                             <textarea id="replace-string" rows="3" placeholder="输入替换文本"></textarea>
                             <div class="form-hint">支持 $1, $2 捕获组和 {{match}} 占位符</div>
                         </div>
-                        
+
+                        <div class="form-group">
+                            <label>扫描深度 <span class="form-hint">（扫描最近N条消息，0表示扫描全部）</span></label>
+                            <input type="number" id="scan-depth" value="0" min="0" max="50" placeholder="0">
+                            <div class="form-hint">设置正则匹配的消息范围，0=全部消息，4=最近4条</div>
+                        </div>
+
                         <div class="form-group">
                             <label>应用位置</label>
                             <div class="checkbox-group">
@@ -291,11 +297,12 @@ class RegexManager {
     renderScriptItem(script, isCharacter) {
         const statusClass = script.disabled ? 'disabled' : 'enabled';
         const statusIcon = script.disabled ? '⏸' : '▶';
+        const scanDepthInfo = script.scanDepth > 0 ? ` · 深度${script.scanDepth}` : '';
         return `
             <div class="script-item ${statusClass}" data-id="${script.id}">
                 <div class="script-header">
                     <span class="script-status">${statusIcon}</span>
-                    <span class="script-name">${script.scriptName || '未命名脚本'}</span>
+                    <span class="script-name">${script.scriptName || '未命名脚本'}${scanDepthInfo}</span>
                     <div class="script-actions">
                         <button class="btn-icon" onclick="regexManager.toggleScript('${script.id}', ${isCharacter})" title="${script.disabled ? '启用' : '禁用'}">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -374,12 +381,13 @@ class RegexManager {
         document.getElementById('script-name').value = script.scriptName || '';
         document.getElementById('find-regex').value = script.findRegex || '';
         document.getElementById('replace-string').value = script.replaceString || '';
-        
+        document.getElementById('scan-depth').value = script.scanDepth !== undefined ? script.scanDepth : 0;
+
         // 设置复选框
         document.querySelectorAll('input[name="placement"]').forEach(cb => {
             cb.checked = script.placement && script.placement.includes(parseInt(cb.value));
         });
-        
+
         document.getElementById('markdown-only').checked = script.markdownOnly || false;
         document.getElementById('prompt-only').checked = script.promptOnly || false;
         document.getElementById('run-on-edit').checked = script.runOnEdit !== false;
@@ -412,6 +420,7 @@ class RegexManager {
             replaceString,
             placement,
             trimStrings: [],
+            scanDepth: parseInt(document.getElementById('scan-depth').value) || 0,
             markdownOnly: document.getElementById('markdown-only').checked,
             promptOnly: document.getElementById('prompt-only').checked,
             runOnEdit: document.getElementById('run-on-edit').checked,
@@ -461,19 +470,20 @@ class RegexManager {
         document.getElementById('script-name').value = '';
         document.getElementById('find-regex').value = '';
         document.getElementById('replace-string').value = '';
+        document.getElementById('scan-depth').value = '0';
         document.getElementById('test-input').value = '';
         document.getElementById('test-output').innerHTML = '';
-        
+
         // 重置复选框为默认值
         document.querySelectorAll('input[name="placement"]').forEach((cb, index) => {
             cb.checked = index < 2; // 默认选中前两个
         });
-        
+
         document.getElementById('markdown-only').checked = false;
         document.getElementById('prompt-only').checked = false;
         document.getElementById('run-on-edit').checked = true;
         document.getElementById('disabled').checked = false;
-        
+
         this.currentEditingScript = null;
         // 不要在这里重置isCreatingCharacterScript，因为可能是刚刚设置的
     }

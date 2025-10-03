@@ -67,6 +67,14 @@ window.promptManager = {
                 enabled: true
             },
             {
+                identifier: 'toolBookBefore',
+                name: 'ToolBook (before)',
+                system_prompt: true,
+                role: 'system',
+                marker: true,
+                enabled: true
+            },
+            {
                 identifier: 'charDescription',
                 name: 'Char Description',
                 system_prompt: true,
@@ -122,6 +130,14 @@ window.promptManager = {
                 marker: true,
                 enabled: true
             },
+            {
+                identifier: 'toolBookAfter',
+                name: 'ToolBook (after)',
+                system_prompt: true,
+                role: 'system',
+                marker: true,
+                enabled: true
+            },
         ],
         
         // 提示词顺序（使用标识符或角色ID）
@@ -137,13 +153,34 @@ const promptManager = window.promptManager;
 const defaultPromptOrder = [
     { identifier: 'main', enabled: true },
     { identifier: 'worldInfoBefore', enabled: true },
+    { identifier: 'toolBookBefore', enabled: true },
     { identifier: 'charDescription', enabled: true },
     { identifier: 'charPersonality', enabled: true },
     { identifier: 'scenario', enabled: true },
     { identifier: 'personaDescription', enabled: true },
     { identifier: 'dialogueExamples', enabled: true },
     { identifier: 'chatHistory', enabled: true },
-    { identifier: 'worldInfoAfter', enabled: true }
+    { identifier: 'worldInfoAfter', enabled: true },
+    { identifier: 'toolBookAfter', enabled: true }
+];
+
+const TOOLBOOK_PROMPT_DEFINITIONS = [
+    {
+        identifier: 'toolBookBefore',
+        name: 'ToolBook (before)',
+        system_prompt: true,
+        role: 'system',
+        marker: true,
+        enabled: true
+    },
+    {
+        identifier: 'toolBookAfter',
+        name: 'ToolBook (after)',
+        system_prompt: true,
+        role: 'system',
+        marker: true,
+        enabled: true
+    }
 ];
 
 // 显示提示词管理器
@@ -1005,6 +1042,7 @@ const presetManager = {
 const ROLE_IDS = {
     100000: 'main',
     100001: 'worldInfoBefore',
+    100012: 'toolBookBefore',
     100002: 'charDescription', 
     100003: 'charPersonality',
     100004: 'scenario',
@@ -1012,10 +1050,89 @@ const ROLE_IDS = {
     100006: 'dialogueExamples',
     100007: 'chatHistory',
     100008: 'worldInfoAfter',
+    100013: 'toolBookAfter',
     100009: 'enhanceDefinitions',
     100010: 'nsfw',
     100011: 'jailbreak'
 };
+
+function getIdentifierFromOrderItem(item) {
+    if (item === null || item === undefined) return null;
+    if (typeof item === 'string') return item;
+    if (typeof item === 'object' && item.identifier) return item.identifier;
+    return null;
+}
+
+function ensureToolBookMarkers(preset) {
+    if (!preset) {
+        return;
+    }
+
+    if (!Array.isArray(preset.prompts)) {
+        preset.prompts = [];
+    }
+
+    TOOLBOOK_PROMPT_DEFINITIONS.forEach(def => {
+        const existing = preset.prompts.find(p => p && p.identifier === def.identifier);
+        if (existing) {
+            existing.system_prompt = true;
+            existing.role = existing.role || 'system';
+            existing.marker = true;
+            if (existing.enabled === undefined) {
+                existing.enabled = true;
+            }
+        } else {
+            preset.prompts.push({ ...def });
+        }
+    });
+
+    if (!Array.isArray(preset.prompt_order) || preset.prompt_order.length === 0) {
+        return;
+    }
+
+    const processOrderArray = (orderArr) => {
+        if (!Array.isArray(orderArr)) {
+            return;
+        }
+        TOOLBOOK_PROMPT_DEFINITIONS.forEach(def => {
+            const identifier = def.identifier;
+            const anchorIdentifier = identifier === 'toolBookBefore' ? 'worldInfoBefore' : 'worldInfoAfter';
+            const exists = orderArr.some(item => getIdentifierFromOrderItem(item) === identifier);
+            if (exists) {
+                return;
+            }
+
+            const insertIndex = orderArr.findIndex(item => getIdentifierFromOrderItem(item) === anchorIdentifier);
+            const sample = orderArr.find(item => item !== undefined && item !== null);
+            let valueToInsert;
+            if (typeof sample === 'string' || sample === undefined) {
+                valueToInsert = identifier;
+            } else if (typeof sample === 'object') {
+                valueToInsert = { identifier, enabled: true };
+            } else {
+                valueToInsert = identifier;
+            }
+
+            if (insertIndex >= 0 && insertIndex < orderArr.length) {
+                orderArr.splice(insertIndex + 1, 0, valueToInsert);
+            } else {
+                orderArr.push(valueToInsert);
+            }
+        });
+    };
+
+    if (Array.isArray(preset.prompt_order[0]) || (preset.prompt_order[0] && Array.isArray(preset.prompt_order[0].order))) {
+        preset.prompt_order.forEach(entry => {
+            if (Array.isArray(entry)) {
+                processOrderArray(entry);
+            } else if (entry && Array.isArray(entry.order)) {
+                processOrderArray(entry.order);
+            }
+        });
+    } else {
+        processOrderArray(preset.prompt_order);
+    }
+}
 
 // 保存当前预设到服务器（不再使用本地缓存）
 function saveAllPresetsToLocal() {
@@ -1103,6 +1220,7 @@ async function loadAllPresetsFromLocal() {
                     const name = preset.name || preset.filename?.replace('.json', '') || 'Unnamed';
                     delete preset.filename; // 移除filename字段
                     promptManager.presets[name] = preset;
+                    ensureToolBookMarkers(promptManager.presets[name]);
                 });
             }
         }
@@ -1147,9 +1265,9 @@ function generateDefaultPromptOrder() {
     
     // 使用预定义顺序
     const predefinedOrder = [
-        'main', 'worldInfoBefore', 'charDescription', 'charPersonality',
+        'main', 'worldInfoBefore', 'toolBookBefore', 'charDescription', 'charPersonality',
         'scenario', 'personaDescription', 'enhanceDefinitions', 'nsfw',
-        'dialogueExamples', 'chatHistory', 'worldInfoAfter', 'jailbreak'
+        'dialogueExamples', 'chatHistory', 'worldInfoAfter', 'toolBookAfter', 'jailbreak'
     ];
     
     predefinedOrder.forEach(identifier => {
@@ -1429,8 +1547,9 @@ window.importPreset = function(file) {
 };
 
 // 构建最终的提示词列表 - Chat Completion API格式
-window.buildPromptMessages = function(chatHistory, character, worldInfo, userSettings) {
+window.buildPromptMessages = function(chatHistory, character, worldInfo, userSettings, toolBookData) {
     const preset = promptManager.preset;
+    ensureToolBookMarkers(preset);
     const prompts = preset.prompts || [];
     
     console.log('[预设管理] 开始构建buildPromptMessages');
@@ -1506,7 +1625,7 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     orderedPrompts.forEach(prompt => {
         // 处理marker占位符
         if (prompt.marker) {
-            const markerContent = getMarkerContent(prompt.identifier, character, worldInfo, chatHistory, userSettings);
+            const markerContent = getMarkerContent(prompt.identifier, character, worldInfo, chatHistory, userSettings, toolBookData);
             if (markerContent) {
                 if (prompt.identifier === 'chatHistory') {
                     // 聊天历史特殊处理
@@ -1589,17 +1708,212 @@ window.buildPromptMessages = function(chatHistory, character, worldInfo, userSet
     return finalMessages;
 };
 
+// 构建图片推送预设
+function buildImagePushPrompt(toolBookData) {
+    // 检查全局开关
+    if (!window.globalImagePushEnabled) {
+        console.log('[图片推送] 全局开关未启用，跳过图片推送预设');
+        return '';
+    }
+
+    if (!toolBookData || !toolBookData.entries || !Array.isArray(toolBookData.entries)) {
+        return '';
+    }
+
+    // 筛选出启用图片推送的工具书条目
+    const imagePushEntries = toolBookData.entries.filter(entry => entry.enableImagePush && entry.resources && entry.resources.length > 0);
+
+    if (imagePushEntries.length === 0) {
+        return '';
+    }
+
+    console.log('[图片推送] 找到', imagePushEntries.length, '个启用图片推送的工具书');
+
+    // 构建预设内容
+    let prompt = `## 📸 图片输出功能
+
+你具有输出图片的能力。当前可用的工具书图片资源：
+
+`;
+
+    // 按工具书分组列出图片
+    imagePushEntries.forEach(entry => {
+        const displayName = entry.displayName || entry.keyword;
+        const keyword = entry.keyword;
+
+        console.log('[图片推送] 处理工具书:', keyword, 'displayName:', displayName);
+
+        prompt += `### 【${displayName}】\n`;
+
+        // 解析工具书内容，提取图片信息
+        const content = entry.content || '';
+        const imageInfoList = extractImageInfoFromContent(content, keyword);
+
+        console.log('[图片推送] 提取到的图片列表:', imageInfoList);
+
+        imageInfoList.forEach((imgInfo, index) => {
+            prompt += `${index + 1}. **${imgInfo.filename}**\n`;
+            prompt += `   - 路径: \`/api/toolbook-resource/${keyword}/${imgInfo.filename}\`\n`;
+            prompt += `\n`;
+        });
+    });
+
+    console.log('[图片推送] 生成的完整预设:\n', prompt);
+
+    prompt += `---
+
+**输出图片的HTML格式规范：**
+
+⚠️ **重要：你只需要输出body标签内的内容！**
+
+当用户请求查看图片时，使用以下格式输出：
+
+\`\`\`html
+【图片推送开头】
+<body>
+    <img src="/api/toolbook-resource/工具书关键词/图片文件名.jpeg" alt="图片描述">
+    <div class="caption">图片说明文字</div>
+</body>
+【图片推送结尾】
+\`\`\`
+
+**重要规则：**
+1. ✅ **必须使用 \`\`\`html 和 \`\`\` 包裹整个代码**
+2. ✅ **必须包含【图片推送开头】和【图片推送结尾】标记**
+3. ✅ **必须包含 \`<body>\` 和 \`</body>\` 标签**
+4. ✅ 使用准确的图片路径（直接复制上面列出的完整路径，不要修改keyword）
+5. ✅ alt属性填写图片的识别描述
+6. ✅ caption div中可以添加更生动的说明文字
+7. ❌ **不要添加 \`<!DOCTYPE>\`、\`<html>\`、\`<head>\`、\`<style>\` 等标签**
+8. ❌ 不要修改路径中的keyword，必须使用列表中提供的准确路径
+
+**示例场景：**
+- 用户："给我看看加菲猫电话机"
+- 你应该输出：
+
+\`\`\`html
+【图片推送开头】
+<body>
+    <img src="/api/toolbook-resource/猫猫电话/image2.jpeg" alt="加菲猫造型的橙色复古电话机">
+    <div class="caption">加菲猫电话机 - 经典的橙色造型，配有黄色面部特征和螺旋电话线～超级复古可爱！</div>
+</body>
+【图片推送结尾】
+\`\`\`
+
+**路径使用说明：**
+- ✅ 正确：直接复制列表中的路径 \`/api/toolbook-resource/猫猫电话/image2.jpeg\`
+- ❌ 错误：不要自己编造或修改keyword，如 \`/api/toolbook-resource/猫科动物电话/...\`
+
+`;
+
+    return prompt;
+}
+
+// 从工具书内容中提取图片信息
+function extractImageInfoFromContent(content, keyword) {
+    const imageInfoList = [];
+    const lines = content.split('\n');
+
+    // 匹配 [[filename.ext]] 格式的占位符
+    const standardMatches = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(/\[\[([^\]]+\.(png|jpg|jpeg|gif|svg|webp|bmp))\]\]/i);
+
+        if (match) {
+            const filename = match[1];
+
+            // 尝试获取图片描述（下一行或下几行的文本）
+            let description = '';
+            for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                const nextLine = lines[j].trim();
+                // 如果遇到空行或新的占位符，停止
+                if (!nextLine || nextLine.startsWith('[[') || nextLine.startsWith('【')) break;
+                description += (description ? ' ' : '') + nextLine;
+            }
+
+            standardMatches.push({
+                filename: filename,
+                description: description || `${keyword}相关资源`,
+                keyword: keyword
+            });
+        }
+    }
+
+    // 如果找到了标准格式的占位符，使用它们
+    if (standardMatches.length > 0) {
+        return standardMatches;
+    }
+
+    // 否则，尝试匹配 【imageX】 格式（导入DOCX时的格式）
+    const imagePattern = /【(image\d+)】/g;
+    const imageDescriptions = new Map();
+
+    // 遍历所有行，收集图片描述
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // 匹配格式：【imageX】: 描述文字
+        const descMatch = line.match(/^【(image\d+)】\s*[:：]\s*(.+)$/);
+        if (descMatch) {
+            const placeholder = descMatch[1];
+            const description = descMatch[2].trim();
+            imageDescriptions.set(placeholder, description);
+            console.log(`[图片描述] 找到 ${placeholder}: ${description}`);
+        }
+    }
+
+    // 收集所有出现的【imageX】占位符
+    const imagePlaceholders = new Set();
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const matches = [...line.matchAll(imagePattern)];
+        for (const match of matches) {
+            imagePlaceholders.add(match[1]);
+        }
+    }
+
+    console.log(`[图片推送] 找到 ${imagePlaceholders.size} 个图片占位符:`, Array.from(imagePlaceholders));
+    console.log(`[图片推送] 找到 ${imageDescriptions.size} 个图片描述`);
+
+    // 获取实际的resources列表，匹配imageX到实际文件名
+    const toolBook = window.toolBooks?.find(tb => tb.keyword === keyword);
+    const resources = toolBook?.resources || [];
+
+    console.log(`[图片推送] 工具书资源列表:`, resources);
+
+    // 将【imageX】格式转换为实际文件
+    imagePlaceholders.forEach(placeholder => {
+        // imageX 格式，从resources中找到对应的文件
+        // 通常导入的文件名就是 imageX.jpeg 或 imageX.png
+        const matchingResource = resources.find(r =>
+            r.name.toLowerCase().startsWith(placeholder.toLowerCase())
+        );
+
+        if (matchingResource) {
+            const description = imageDescriptions.get(placeholder) || `${keyword}相关图片`;
+            imageInfoList.push({
+                filename: matchingResource.name,
+                description: description,
+                keyword: keyword
+            });
+        }
+    });
+
+    return imageInfoList;
+}
+
 // 获取marker占位符的实际内容
-function getMarkerContent(identifier, character, worldInfo, chatHistory, userSettings) {
+function getMarkerContent(identifier, character, worldInfo, chatHistory, userSettings, toolBookData) {
     const preset = promptManager.preset;
-    
+
     switch(identifier) {
         case 'worldInfoBefore':
             return worldInfo?.before || '';
-            
+
         case 'worldInfoAfter':
             return worldInfo?.after || '';
-            
+
         case 'charDescription':
             if (character?.description) {
                 const format = preset.personality_format || '[{{char}}\'s description: {{personality}}]';
@@ -1607,7 +1921,7 @@ function getMarkerContent(identifier, character, worldInfo, chatHistory, userSet
                            .replace('{{personality}}', character.description);
             }
             return '';
-            
+
         case 'charPersonality':
             if (character?.personality) {
                 const format = preset.personality_format || '[{{char}}\'s personality: {{personality}}]';
@@ -1615,14 +1929,14 @@ function getMarkerContent(identifier, character, worldInfo, chatHistory, userSet
                            .replace('{{personality}}', character.personality);
             }
             return '';
-            
+
         case 'scenario':
             if (character?.scenario) {
                 const format = preset.scenario_format || '[Circumstances and context of the dialogue: {{scenario}}]';
                 return format.replace('{{scenario}}', character.scenario);
             }
             return '';
-            
+
         case 'personaDescription':
             // userSettings.persona 已经是描述文本了，不需要再从localStorage读取
             const persona = userSettings?.persona;
@@ -1630,17 +1944,29 @@ function getMarkerContent(identifier, character, worldInfo, chatHistory, userSet
                 return `[User's persona: ${persona}]`;
             }
             return '';
-            
+
         case 'dialogueExamples':
             if (character?.mes_example) {
                 return `[Example dialogue:\n${character.mes_example}]`;
             }
             return '';
-            
+
         case 'chatHistory':
             // 返回聊天历史消息数组
             return chatHistory || [];
-            
+
+        case 'toolBookBefore':
+            // 合并工具书before内容和图片推送预设
+            let beforeContent = toolBookData?.before || '';
+            const imagePushPrompt = buildImagePushPrompt(toolBookData);
+            if (imagePushPrompt) {
+                beforeContent = beforeContent ? `${beforeContent}\n\n${imagePushPrompt}` : imagePushPrompt;
+            }
+            return beforeContent;
+
+        case 'toolBookAfter':
+            return toolBookData?.after || '';
+
         default:
             return '';
     }
@@ -1746,8 +2072,8 @@ window.initPromptManager = async function() {
                 system_prompt: true,
                 role: 'system',
                 enabled: item.enabled,
-                marker: ['worldInfoBefore', 'worldInfoAfter', 'charDescription', 
-                         'charPersonality', 'scenario', 'personaDescription', 
+                marker: ['worldInfoBefore', 'worldInfoAfter', 'toolBookBefore', 'toolBookAfter', 'charDescription',
+                         'charPersonality', 'scenario', 'personaDescription',
                          'dialogueExamples', 'chatHistory'].includes(item.identifier)
             };
             

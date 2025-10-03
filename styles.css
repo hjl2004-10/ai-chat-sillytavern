@@ -2224,19 +2224,79 @@ body.dark {
     .document-preview-card {
         padding: 12px;
     }
-    
+
     .doc-name {
         max-width: 150px;
     }
-    
+
     .modal-content {
         width: 95%;
         max-height: 90vh;
     }
-    
+
     .doc-action-btn {
         font-size: 12px;
         padding: 6px 12px;
     }
+}
+
+/* ==================== Swipe 控制按钮样式 ==================== */
+
+.swipe-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 8px;
+}
+
+.dark .swipe-controls {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.swipe-btn {
+    padding: 6px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+}
+
+.swipe-btn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.dark .swipe-btn {
+    background: #1f2937;
+    border-color: #374151;
+    color: #9ca3af;
+}
+
+.dark .swipe-btn:hover {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+.swipe-counter {
+    font-size: 13px;
+    color: #6b7280;
+    font-weight: 500;
+    min-width: 60px;
+    text-align: center;
+}
+
+.dark .swipe-counter {
+    color: #9ca3af;
 }
 

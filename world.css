@@ -735,4 +735,140 @@
         padding: 6px 12px;
         font-size: 12px;
     }
+}.world-divider {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin: 16px 0;
+}
+
+.world-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 12px 0 8px;
+}
+
+.toolbook-section .world-books-list {
+    margin-top: 12px;
+}
+.world-divider {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    margin: 16px 0;
+}
+
+.world-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 12px 0 8px;
+}
+
+.toolbook-section .world-books-list {
+    margin-top: 12px;
+}
+
+.toolbook-resource-list {
+    margin-top: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.02);
+}
+
+.toolbook-resource-list .resource-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.toolbook-resource-list .resource-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.toolbook-resource-list .resource-list li:last-child {
+    border-bottom: none;
+}
+
+.resource-name {
+    font-weight: 500;
+    flex: 1;
+}
+
+.resource-meta {
+    color: rgba(15, 23, 42, 0.6);
+    font-size: 12px;
+    margin-right: 8px;
+}
+
+.resource-placeholder {
+    background: rgba(56, 189, 248, 0.1);
+    color: #0284c7;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.link-btn {
+    border: none;
+    background: none;
+    color: #2563eb;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.link-btn:hover {
+    text-decoration: underline;
+}
+
+
+/* 导入进度样式 */
+.import-progress-container {
+    padding: 20px;
+    text-align: center;
+}
+
+.progress-status {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #1f2937;
+}
+
+.dark .progress-status {
+    color: #f3f4f6;
+}
+
+.progress-bar-wrapper {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.dark .progress-bar-wrapper {
+    background: #374151;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.progress-detail {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.dark .progress-detail {
+    color: #9ca3af;
 }
