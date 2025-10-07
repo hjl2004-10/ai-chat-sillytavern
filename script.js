@@ -333,8 +333,16 @@ async function loadConfig() {
                 config.presence_penalty = data.presence_penalty !== undefined ? data.presence_penalty : config.presence_penalty;
                 config.currentPresetName = data.currentPresetName || config.currentPresetName;
                 config.showCharacterHeader = data.showCharacterHeader !== undefined ? data.showCharacterHeader : config.showCharacterHeader;
+
+                // 加载识图API配置
+                config.vision_api_base = data.vision_api_base || config.vision_api_base;
+                config.vision_api_path = data.vision_api_path || config.vision_api_path;
+                config.vision_api_key = data.vision_api_key || config.vision_api_key;
+                config.vision_model = data.vision_model || config.vision_model;
+                config.vision_prompt = data.vision_prompt || config.vision_prompt;
+
                 // 不加载 max_context, max_tokens, api_base 等废弃参数
-                
+
                 // 保存到本地
                 saveConfigToLocal();
             }
