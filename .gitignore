@@ -42,6 +42,8 @@ secrets.json
 config.json
 *.key
 *.pem
+claude.md
+CLAUDE.md
 
 # 临时文件
 *.tmp
